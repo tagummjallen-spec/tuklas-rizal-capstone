@@ -1,0 +1,47 @@
+name: tuklas_rizal
+description: "TuklasRizal: An LLM-Based Application for Culture, Arts and Tourism for the Province of Rizal"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Backend: Supabase Auth & PostgreSQL integration
+  supabase_flutter: ^2.7.0
+
+  # State management: clean, scalable Riverpod
+  flutter_riverpod: ^2.6.1
+
+  # Navigation: structured declarative GoRouter
+  go_router: ^14.2.0
+
+  # Typography: Google Fonts
+  google_fonts: ^6.2.1
+
+  # Location: municipal geofencing & boundary detection
+  geolocator: ^13.0.1
+
+  # Calendar & maps: save events to device calendar & open directions
+  add_2_calendar: ^3.1.1
+  url_launcher: ^6.3.1
+
+  # Date/time formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
