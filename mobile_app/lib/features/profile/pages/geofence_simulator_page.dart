@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/municipalities.dart';
-import '../../../core/providers/app_providers.dart';
 import '../../../services/geofence_service.dart';
 
 /// Geofence Simulator — developer debug toggle to trigger municipal entry
@@ -102,7 +101,10 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                '${AppConstants.geofenceWelcomeAlertTitle.replaceAll('{municipality}', entry.municipality.name)}',
+                                AppConstants.geofenceWelcomeAlertTitle.replaceAll(
+                                  '{municipality}',
+                                  entry.municipality.name,
+                                ),
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,

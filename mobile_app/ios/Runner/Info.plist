@@ -66,5 +66,24 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- Geolocation permissions for municipal geofencing & boundary detection -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>TuklasRizal needs your location to show welcome alerts when you enter a Rizal municipality.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>TuklasRizal needs your location to show welcome alerts when you enter a Rizal municipality.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>TuklasRizal needs your location to show welcome alerts when you enter a Rizal municipality.</string>
+
+	<!-- url_launcher: open maps, phone dialer, and mail apps -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>comgooglemaps</string>
+		<string>maps</string>
+	</array>
 </dict>
 </plist>

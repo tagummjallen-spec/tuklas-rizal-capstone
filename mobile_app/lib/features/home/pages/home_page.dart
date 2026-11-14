@@ -9,17 +9,32 @@ import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/municipality_chip.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../models/event_item.dart';
-import '../../../services/discovery_service.dart';
 
 /// Home / Discovery Hub — featured events, "Promote Towns and Events",
 /// municipality + barangay + category filters.
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  String? _selectedMunicipalityId;
+  String? _selectedBarangayName;
+  String? _selectedCategoryId;
+
+  final dateFormat = DateFormat('MMM d, yyyy');
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final discovery = ref.read(discoveryServiceProvider);
-    final _dateFormat = DateFormat('MMM d, yyyy');
+
+    // Barangay sub-filter: only show barangays for the selected municipality.
+    final barangays = _selectedMunicipalityId != null
+        ? RizalBarangays.forMunicipality(_selectedMunicipalityId!)
+        : <String>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -53,6 +68,17 @@ class HomePage extends ConsumerWidget {
                 style: TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
               ),
               const SizedBox(height: 16),
+
+              // Municipality filter
+              const Text(
+                'Municipality',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B6B6B),
+                ),
+              ),
+              const SizedBox(height: 8),
               SizedBox(
                 height: 44,
                 child: ListView.builder(
@@ -60,18 +86,81 @@ class HomePage extends ConsumerWidget {
                   itemCount: RizalMunicipalities.all.length,
                   itemBuilder: (_, i) {
                     final m = RizalMunicipalities.all[i];
+                    final selected = _selectedMunicipalityId == m.id;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: MunicipalityChip(
                         municipality: m,
-                        isSelected: false,
-                        onSelected: () {},
+                        isSelected: selected,
+                        onSelected: () {
+                          setState(() {
+                            _selectedMunicipalityId = m.id;
+                            _selectedBarangayName = null;
+                          });
+                        },
                       ),
                     );
                   },
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // Barangay sub-filter (shown when a municipality is selected)
+              if (_selectedMunicipalityId != null) ...[
+                Text(
+                  'Barangay',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B6B6B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 44,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: barangays.length,
+                    itemBuilder: (_, i) {
+                      final b = barangays[i];
+                      final selected = _selectedBarangayName == b;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(b),
+                          selected: selected,
+                          onSelected: (_) {
+                            setState(() => _selectedBarangayName = b);
+                          },
+                          selectedColor: const Color(0xFFFFC800),
+                          backgroundColor: Colors.white,
+                          labelStyle: TextStyle(
+                            color: selected
+                                ? const Color(0xFF033300)
+                                : const Color(0xFF6B6B6B),
+                            fontWeight: selected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                          side: BorderSide(
+                            color: selected
+                                ? const Color(0xFF033300)
+                                : const Color(0xFFE5E5E5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               const SectionHeader(
                 title: 'Category',
@@ -84,14 +173,16 @@ class HomePage extends ConsumerWidget {
                   itemCount: TourismCategories.all.length,
                   itemBuilder: (_, i) {
                     final c = TourismCategories.all[i];
+                    final selected = _selectedCategoryId == c.id;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: CategoryChip(
                         id: c.id,
                         name: c.name,
                         color: c.color,
-                        isSelected: false,
-                        onSelected: () {},
+                        isSelected: selected,
+                        onSelected: () =>
+                            setState(() => _selectedCategoryId = c.id),
                       ),
                     );
                   },
@@ -110,14 +201,14 @@ class HomePage extends ConsumerWidget {
                   stream: discovery.promoteTownsAndEvents,
                   builder: (context, snap) {
                     final events = snap.data ?? [];
-                    final promoted = discovery is MockDiscoveryService
-                        ? (discovery as MockDiscoveryService)
-                            .scorePromoteTownsAndEvents(
-                              events: events,
-                              userInterestCategoryIds: [],
-                              municipalityVisitCounts: {},
-                            )
-                        : events;
+                    final promoted = discovery.scorePromoteTownsAndEvents(
+                      events: events,
+                      userInterestCategoryIds:
+                          _selectedCategoryId != null
+                              ? [_selectedCategoryId!]
+                              : [],
+                      municipalityVisitCounts: {},
+                    );
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: promoted.length,
@@ -130,7 +221,7 @@ class HomePage extends ConsumerWidget {
                             child: EventCard(
                               title: e.title,
                               municipality: e.municipalityId,
-                              date: _dateFormat.format(e.startDate),
+                              date: dateFormat.format(e.startDate),
                               category: e.categoryId ?? 'General',
                               imageUrl: e.imageUrl ??
                                   'https://via.placeholder.com/600x400',
@@ -171,7 +262,7 @@ class HomePage extends ConsumerWidget {
                             child: EventCard(
                               title: e.title,
                               municipality: e.municipalityId,
-                              date: _dateFormat.format(e.startDate),
+                              date: dateFormat.format(e.startDate),
                               category: e.categoryId ?? 'General',
                               imageUrl: e.imageUrl ??
                                   'https://via.placeholder.com/600x400',

@@ -32,7 +32,7 @@ class PoiCard extends StatelessWidget {
                 height: 150,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (context, error, stackTrace) => Container(
                   height: 150,
                   color: const Color(0xFFF7F6F2),
                   child: const Icon(Icons.place, color: Color(0xFF033300)),

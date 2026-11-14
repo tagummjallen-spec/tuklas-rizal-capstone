@@ -8,12 +8,14 @@ import 'core/router/app_router.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase (keys configured in core/constants/app_constants.dart).
-  // Replace placeholder keys before production build.
-  await Supabase.initialize(
-    url: AppConstants.supabaseUrl,
-    publishableKey: AppConstants.supabaseAnonKey,
-  );
+  // Safe offline/mock fallback: only initialize Supabase when real credentials
+  // are configured. Otherwise the app launches immediately in mock/demo mode.
+  if (AppConstants.isSupabaseConfigured) {
+    await Supabase.initialize(
+      url: AppConstants.supabaseUrl,
+      publishableKey: AppConstants.supabaseAnonKey,
+    );
+  }
 
   runApp(const ProviderScope(child: TuklasRizalApp()));
 }

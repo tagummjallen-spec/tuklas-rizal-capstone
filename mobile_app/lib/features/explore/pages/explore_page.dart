@@ -113,7 +113,8 @@ class PoiDetailPage extends ConsumerWidget {
                   height: 220,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const _PlaceholderImage(),
+                  errorBuilder: (context, error, stackTrace) =>
+                      const _PlaceholderImage(),
                 ),
               ),
               const SizedBox(height: 16),
@@ -148,6 +149,36 @@ class PoiDetailPage extends ConsumerWidget {
                   },
                 ),
               ),
+              const SizedBox(height: 24),
+              // Tourism Coordinator contact & inquiry
+              const SectionHeader(
+                title: 'Tourism Coordinator',
+                subtitle:
+                    "Contact the municipal ${AppConstants.tourismCoordinatorTitle}",
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.business, color: Color(0xFF033300)),
+                title: Text(
+                  '${poi.municipalityId} ${AppConstants.tourismCoordinatorTitle}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => Navigator.of(context)
+                    .pushNamed('/inquiry/${poi.municipalityId}'),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.email),
+                  label: const Text('Send Inquiry to Tourism Coordinator'),
+                  onPressed: () => Navigator.of(context)
+                      .pushNamed('/inquiry/${poi.municipalityId}'),
+                ),
+              ),
+              const SizedBox(height: 32),
             ],
           ),
         );

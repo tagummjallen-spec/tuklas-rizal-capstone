@@ -12,6 +12,13 @@ abstract class DiscoveryService {
   Future<List<EventItem>> getEventsByMunicipality(String municipalityId);
   Future<List<PoiLogistics>> getPoisByMunicipality(String municipalityId);
   Future<List<EventItem>> searchEvents(String query);
+
+  /// Rule-Based AI "Promote Towns and Events" scoring.
+  List<EventItem> scorePromoteTownsAndEvents({
+    required List<EventItem> events,
+    required List<String> userInterestCategoryIds,
+    required Map<String, int> municipalityVisitCounts,
+  });
 }
 
 /// Production implementation backed by Supabase (wired to 001_initial_schema.sql).
@@ -62,8 +69,9 @@ class SupabaseDiscoveryService implements DiscoveryService {
   /// Rule-Based AI "Promote Towns and Events" scoring logic.
   ///
   /// Boosts under-visited municipalities and local events while matching user interests.
-  List<EventItem> scorePromoteTownsAndEvents(
-    List<EventItem> events, {
+  @override
+  List<EventItem> scorePromoteTownsAndEvents({
+    required List<EventItem> events,
     required List<String> userInterestCategoryIds,
     required Map<String, int> municipalityVisitCounts,
   }) {
@@ -228,13 +236,14 @@ class MockDiscoveryService implements DiscoveryService {
   @override
   Future<List<EventItem>> searchEvents(String query) => _inner.searchEvents(query);
 
+  @override
   List<EventItem> scorePromoteTownsAndEvents({
     required List<EventItem> events,
     required List<String> userInterestCategoryIds,
     required Map<String, int> municipalityVisitCounts,
   }) {
     return _inner.scorePromoteTownsAndEvents(
-      events,
+      events: events,
       userInterestCategoryIds: userInterestCategoryIds,
       municipalityVisitCounts: municipalityVisitCounts,
     );

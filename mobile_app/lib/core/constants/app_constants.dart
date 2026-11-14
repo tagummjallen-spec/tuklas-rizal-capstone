@@ -50,5 +50,14 @@ class AppConstants {
   static const String supabaseUrl = 'https://your-project.supabase.co';
   static const String supabaseAnonKey = 'your-anon-key';
 
+  /// Returns true only when Supabase credentials have been replaced with real values.
+  /// When false, the app launches in mock/demo mode without initializing Supabase.
+  static bool get isSupabaseConfigured {
+    return supabaseUrl != 'https://your-project.supabase.co' &&
+        supabaseAnonKey != 'your-anon-key' &&
+        supabaseUrl.isNotEmpty &&
+        supabaseAnonKey.isNotEmpty;
+  }
+
   static const int defaultPageSize = 20;
 }

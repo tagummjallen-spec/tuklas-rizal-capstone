@@ -188,3 +188,29 @@ class RizalMunicipalities {
     }
   }
 }
+
+/// Sample barangays per municipality for the Home Discovery Hub Barangay sub-filter.
+/// Mirrors `supabase/migrations/001_initial_schema.sql` `barangays` table (child of municipalities).
+class RizalBarangays {
+  static const Map<String, List<String>> byMunicipality = {
+    'angono': ['San Isidro', 'San Vicente', 'Kalayaan', 'Mahabang Parang'],
+    'antipolo': ['San Jose', 'Santa Cruz', 'Mambugan', 'Mayamot'],
+    'binangonan': ['Malapad na Bato', 'Tatala', 'Pantok', 'Bining'],
+    'taytay': ['San Juan', 'Santa Ana', 'Dolores', 'Muzon'],
+    'morong': ['San Jose', 'San Pedro', 'Lagundi', 'Maybangcal'],
+    'cainta': ['San Andres', 'Santo Domingo', 'Muzon', 'San Roque'],
+    'tanay': ['San Andres', 'Santa Ines', 'Patunhay', 'Tandang Kutyo'],
+    'rodriguez': ['San Jose', 'San Rafael', 'San Isidro', 'Manggahan'],
+    'san_mateo': ['Santa Ana', 'Dulong Bayan', 'Maly', 'Guinayangan'],
+    'pililla': ['Hulo', 'Timbanggan', 'Quisao', 'Bagumbayan'],
+    'baras': ['San Nicholas', 'San Salvador', 'Pinugay', 'San Jose'],
+    'cardona': ['Tuna', 'Del Remedio', 'Malocal', 'Bo. Cabilang'],
+    'jala_jala': ['Second District', 'First District', 'Third District'],
+    'teresa': ['Dalig', 'Poblacion', 'Santolan', 'Bagumbayan'],
+  };
+
+  static List<String> forMunicipality(String municipalityId) {
+    return byMunicipality[municipalityId] ?? const [];
+  }
+}
+
