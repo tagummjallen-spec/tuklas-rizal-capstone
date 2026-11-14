@@ -4,14 +4,28 @@ import '../../services/discovery_service.dart';
 import '../../services/geofence_service.dart';
 import '../../services/rag_chat_service.dart';
 import '../../services/coordinator_service.dart';
+import '../../core/constants/app_constants.dart';
 
-/// Central provider declarations so all feature screens share one service instance.
-/// Swap mock implementations for Supabase-backed ones when keys are configured.
+/// Central provider declarations.
+///
+/// Automatically selects Supabase-backed implementations when
+/// `AppConstants.isSupabaseConfigured` is true; otherwise falls back to
+/// mock/demo implementations so the app launches immediately without
+/// requiring real Supabase credentials.
 
-final authServiceProvider = Provider<AuthService>((ref) => MockAuthService());
+final authServiceProvider = Provider<AuthService>((ref) {
+  if (AppConstants.isSupabaseConfigured) {
+    return SupabaseAuthService();
+  }
+  return MockAuthService();
+});
 
-final discoveryServiceProvider = Provider<DiscoveryService>((ref) =>
-    MockDiscoveryService());
+final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
+  if (AppConstants.isSupabaseConfigured) {
+    return SupabaseDiscoveryService();
+  }
+  return MockDiscoveryService();
+});
 
 final geofenceServiceProvider = Provider<GeofenceService>((ref) =>
     MockGeofenceService());
@@ -19,5 +33,9 @@ final geofenceServiceProvider = Provider<GeofenceService>((ref) =>
 final ragChatServiceProvider = Provider<RagChatService>((ref) =>
     MockRagChatService());
 
-final coordinatorServiceProvider = Provider<CoordinatorService>((ref) =>
-    MockCoordinatorService());
+final coordinatorServiceProvider = Provider<CoordinatorService>((ref) {
+  if (AppConstants.isSupabaseConfigured) {
+    return SupabaseCoordinatorService();
+  }
+  return MockCoordinatorService();
+});

@@ -47,14 +47,14 @@ class AppConstants {
   static const String tableCoordinatorInquiries = 'coordinator_inquiries';
 
   // Supabase placeholder — replace with real keys before production build.
-  static const String supabaseUrl = 'https://your-project.supabase.co';
-  static const String supabaseAnonKey = 'your-anon-key';
+  static const String supabaseUrl = 'https://dhqzhlhyblcziouyoltp.supabase.co';
+  static const String supabaseAnonKey = 'sb_publishable_kEqnKvO1fUU3xMmvZVCylg_el4jTWnr';
 
   /// Returns true only when Supabase credentials have been replaced with real values.
   /// When false, the app launches in mock/demo mode without initializing Supabase.
   static bool get isSupabaseConfigured {
-    return supabaseUrl != 'https://your-project.supabase.co' &&
-        supabaseAnonKey != 'your-anon-key' &&
+    return supabaseUrl != 'https://dhqzhlhyblcziouyoltp.supabase.co' &&
+        supabaseAnonKey != 'sb_publishable_kEqnKvO1fUU3xMmvZVCylg_el4jTWnr  ' &&
         supabaseUrl.isNotEmpty &&
         supabaseAnonKey.isNotEmpty;
   }
