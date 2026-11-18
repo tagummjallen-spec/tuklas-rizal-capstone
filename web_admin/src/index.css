@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface text-slate-800 antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-300;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+@layer components {
+  .field-label {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .field-control {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none transition focus:border-forest focus:ring-2 focus:ring-forest/20 disabled:cursor-not-allowed disabled:bg-slate-100;
+  }
+
+  .table-head {
+    @apply bg-forest-soft/60 text-left text-[11px] font-semibold uppercase tracking-wider text-forest;
+  }
+}
