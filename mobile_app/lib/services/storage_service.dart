@@ -26,7 +26,11 @@ class SupabaseStorageService implements StorageService {
     required String folder,
   }) async {
     final client = Supabase.instance.client;
-    final safeFolder = folder == 'pois' ? 'pois' : 'events';
+    final safeFolder = switch (folder) {
+      'pois' => 'pois',
+      'avatars' => 'avatars',
+      _ => 'events',
+    };
     final extension = _extensionFor(fileName);
     final path =
         '$safeFolder/${DateTime.now().millisecondsSinceEpoch}_${_randomSuffix()}.$extension';

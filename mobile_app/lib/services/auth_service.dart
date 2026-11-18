@@ -39,6 +39,19 @@ abstract class AuthService {
   /// Re-sends the 6-digit signup code.
   Future<void> resendSignupOtp(String email);
 
+  /// Passwordless sign-in: emails a 6-digit code to an existing account.
+  Future<void> sendLoginOtp(String email);
+
+  /// Verifies the emailed sign-in code and returns the profile.
+  Future<UserProfile> verifyLoginOtp(String email, String token);
+
+  /// Short self-introduction. `public.users` has no `bio` column, so it lives
+  /// in Supabase auth metadata.
+  String? get currentBio;
+
+  /// Saves [bio] to auth metadata.
+  Future<void> updateBio(String bio);
+
   /// Creates the `public.users` row for an authenticated user who has none yet
   /// (OAuth first sign-in or a confirmed email signup). Safe to call repeatedly.
   Future<UserProfile?> ensureProfile();
@@ -308,6 +321,46 @@ class SupabaseAuthService implements AuthService {
   }
 
   @override
+  Future<void> sendLoginOtp(String email) async {
+    await _client.auth.signInWithOtp(
+      email: email.trim(),
+      shouldCreateUser: false,
+    );
+  }
+
+  @override
+  Future<UserProfile> verifyLoginOtp(String email, String token) async {
+    final response = await _client.auth.verifyOTP(
+      type: OtpType.email,
+      email: email.trim(),
+      token: token.trim(),
+    );
+    final user = response.user;
+    if (user == null) {
+      throw Exception(
+        'That code is invalid or has expired. Request a new code and try again.',
+      );
+    }
+    final existing = await _fetchProfile(user.id);
+    if (existing != null) return existing;
+    return _createProfileFromAuthUser(user);
+  }
+
+  @override
+  String? get currentBio {
+    final meta = _client.auth.currentUser?.userMetadata;
+    final bio = meta?['bio'];
+    return bio is String && bio.trim().isNotEmpty ? bio.trim() : null;
+  }
+
+  @override
+  Future<void> updateBio(String bio) async {
+    await _client.auth.updateUser(
+      UserAttributes(data: {'bio': bio.trim()}),
+    );
+  }
+
+  @override
   Future<bool> hasSavedInterests(String userId) async {
     try {
       final rows = await _client
@@ -542,6 +595,27 @@ class MockAuthService implements AuthService {
   @override
   Future<void> resendSignupOtp(String email) async {
     await Future.delayed(const Duration(milliseconds: 400));
+  }
+
+  @override
+  Future<void> sendLoginOtp(String email) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+  }
+
+  @override
+  String? get currentBio => null;
+
+  @override
+  Future<void> updateBio(String bio) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+  }
+
+  @override
+  Future<UserProfile> verifyLoginOtp(String email, String token) async {
+    if (token.trim().length != 6) {
+      throw Exception('Enter the 6-digit code from your email.');
+    }
+    return signIn(email, 'otp-demo');
   }
 
   @override

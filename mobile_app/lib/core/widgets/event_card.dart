@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/tourism_images.dart';
+import 'app_motion.dart';
 
 /// Reusable event card.
 ///
@@ -25,6 +26,10 @@ class EventCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onToggleSave;
 
+  /// Matches `EventDetailPage`'s Hero tag for a shared image transition.
+  /// Only pass one instance per route so tags stay unique.
+  final String? heroTag;
+
   const EventCard({
     super.key,
     required this.title,
@@ -39,6 +44,7 @@ class EventCard extends StatelessWidget {
     this.isSaved = false,
     required this.onTap,
     this.onToggleSave,
+    this.heroTag,
   });
 
   @override
@@ -55,11 +61,21 @@ class EventCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  TourismImage(
-                    imageUrl: imageUrl,
-                    category: categoryKey ?? category,
-                    municipality: municipalityKey,
-                  ),
+                  if (heroTag != null)
+                    Hero(
+                      tag: heroTag!,
+                      child: TourismImage(
+                        imageUrl: imageUrl,
+                        category: categoryKey ?? category,
+                        municipality: municipalityKey,
+                      ),
+                    )
+                  else
+                    TourismImage(
+                      imageUrl: imageUrl,
+                      category: categoryKey ?? category,
+                      municipality: municipalityKey,
+                    ),
                   if (isPromoted)
                     const Positioned(
                       top: 6,
@@ -115,8 +131,10 @@ class EventCard extends StatelessWidget {
                   _MetaLine(icon: Icons.event, text: date),
                   const SizedBox(height: 6),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF7F6F2),
                       borderRadius: BorderRadius.circular(5),
@@ -211,11 +229,7 @@ class _SaveButton extends StatelessWidget {
         onTap: onPressed,
         child: Padding(
           padding: const EdgeInsets.all(5),
-          child: Icon(
-            isSaved ? Icons.bookmark : Icons.bookmark_border,
-            size: 17,
-            color: const Color(0xFF033300),
-          ),
+          child: AnimatedBookmarkIcon(isSaved: isSaved, size: 17),
         ),
       ),
     );

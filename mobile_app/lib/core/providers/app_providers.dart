@@ -9,6 +9,8 @@ import '../../services/saved_places_service.dart';
 import '../../services/lookup_service.dart';
 import '../../models/user_profile.dart';
 import '../../core/constants/app_constants.dart';
+import '../../features/onboarding/onboarding_provider.dart';
+import '../../features/settings/settings_provider.dart';
 
 /// Central provider declarations.
 ///
@@ -23,6 +25,13 @@ final authServiceProvider = Provider<AuthService>((ref) {
   }
   return MockAuthService();
 });
+
+/// One-time onboarding state (SharedPreferences-backed): whether the
+/// four-step welcome flow has completed and the guest's selected interests.
+final onboardingControllerProvider =
+    ChangeNotifierProvider<OnboardingController>(
+  (ref) => onboardingController,
+);
 
 final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
   if (AppConstants.isSupabaseConfigured) {
@@ -56,6 +65,14 @@ final storageServiceProvider = Provider<StorageService>((ref) {
     return SupabaseStorageService();
   }
   return MockStorageService();
+});
+
+/// Accessibility + notification settings, persisted on device.
+final appSettingsProvider =
+    ChangeNotifierProvider<AppSettingsController>((ref) {
+  final controller = AppSettingsController();
+  controller.load();
+  return controller;
 });
 
 /// Auth state stream used by the app-level onboarding bootstrap.

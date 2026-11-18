@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../core/constants/municipalities.dart';
 import '../models/event_item.dart';
 import '../models/municipality.dart';
@@ -30,6 +31,9 @@ abstract class DiscoveryService {
   /// `event_participation.status` column accepts: 'going', 'interested',
   /// 'attended'.
   Future<void> rsvpEvent(String eventId, String rsvpStatus, String userId);
+
+  /// Removes the user's participation row when an RSVP/bookmark is cleared.
+  Future<void> removeRsvp(String eventId, String userId);
   Stream<List<Map<String, dynamic>>> getMyParticipations(String userId);
 }
 
@@ -60,7 +64,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       venueName: 'Angono Town Proper',
       howToGetThere:
           'Ride a jeepney or UV Express bound for Angono from Shaw Blvd or Cubao; '
-              'alight at Angono Town Plaza.',
+          'alight at Angono Town Plaza.',
       imageUrl: 'https://via.placeholder.com/600x400?text=Higantes+Festival',
       isFeatured: true,
       promotionWeight: 1.3,
@@ -79,7 +83,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       venueName: 'Binangonan Petroglyphs Site',
       howToGetThere:
           'Take a Binangonan-bound jeepney via Manila East Road and alight at '
-              'Binangonan Municipal Hall.',
+          'Binangonan Municipal Hall.',
       imageUrl: 'https://via.placeholder.com/600x400?text=Petroglyphs',
       promotionWeight: 1.1,
       createdAt: DateTime(2026, 10, 5),
@@ -97,7 +101,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       venueName: 'Taytay Municipal Grounds',
       howToGetThere:
           'Take a Taytay/Angono jeepney along Ortigas Avenue Extension and alight '
-              'at Taytay Tiangge.',
+          'at Taytay Tiangge.',
       imageUrl: 'https://via.placeholder.com/600x400?text=Taytay+Tiangge',
       isFeatured: true,
       promotionWeight: 1.2,
@@ -162,13 +166,12 @@ class SupabaseDiscoveryService implements DiscoveryService {
   // ---- Streams (Supabase with mock fallback) ----
 
   @override
-  Stream<List<EventItem>> get featuredEvents =>
-      _client
-          .from('events')
-          .stream(primaryKey: ['id'])
-          .eq('is_featured', true)
-          .eq('status', 'approved')
-          .map((rows) {
+  Stream<List<EventItem>> get featuredEvents => _client
+      .from('events')
+      .stream(primaryKey: ['id'])
+      .eq('is_featured', true)
+      .eq('status', 'approved')
+      .map((rows) {
         final events = rows.map((r) => EventItem.fromJson(r)).toList();
         return events.isNotEmpty
             ? events
@@ -176,12 +179,11 @@ class SupabaseDiscoveryService implements DiscoveryService {
       });
 
   @override
-  Stream<List<EventItem>> get promoteTownsAndEvents =>
-      _client
-          .from('events')
-          .stream(primaryKey: ['id'])
-          .eq('status', 'approved')
-          .map((rows) {
+  Stream<List<EventItem>> get promoteTownsAndEvents => _client
+      .from('events')
+      .stream(primaryKey: ['id'])
+      .eq('status', 'approved')
+      .map((rows) {
         final events = rows.map((r) => EventItem.fromJson(r)).toList();
         return events.isNotEmpty
             ? events
@@ -202,7 +204,8 @@ class SupabaseDiscoveryService implements DiscoveryService {
         return munis.isNotEmpty
             ? munis
             : RizalMunicipalities.all
-                .map((m) => Municipality(
+                  .map(
+                    (m) => Municipality(
                       id: m.id,
                       name: m.name,
                       slug: m.id.replaceAll('_', '-'),
@@ -211,16 +214,15 @@ class SupabaseDiscoveryService implements DiscoveryService {
                       longitude: m.geofenceLng,
                       geofenceRadiusMeters: m.geofenceRadiusMeters,
                       tourismOfficeName: m.tourismOfficeContact,
-                    ))
-                .toList();
+                    ),
+                  )
+                  .toList();
       });
 
   // ---- Futures (Supabase with mock fallback) ----
 
   @override
-  Future<List<EventItem>> getEventsByMunicipality(
-    String municipalityId,
-  ) async {
+  Future<List<EventItem>> getEventsByMunicipality(String municipalityId) async {
     final response = await _client
         .from('events')
         .select()
@@ -258,9 +260,11 @@ class SupabaseDiscoveryService implements DiscoveryService {
     final events = response.map((r) => EventItem.fromJson(r)).toList();
     if (events.isNotEmpty) return events;
     return _mockEvents
-        .where((e) =>
-            e.title.toLowerCase().contains(q) ||
-            (e.description ?? '').toLowerCase().contains(q))
+        .where(
+          (e) =>
+              e.title.toLowerCase().contains(q) ||
+              (e.description ?? '').toLowerCase().contains(q),
+        )
         .toList();
   }
 
@@ -300,8 +304,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       }
 
       return event.withPromotedRank(score);
-    }).toList()
-      ..sort((a, b) => b.promotedRank.compareTo(a.promotedRank));
+    }).toList()..sort((a, b) => b.promotedRank.compareTo(a.promotedRank));
   }
 
   // ---- RSVP / participation (event_participation) ----
@@ -313,20 +316,24 @@ class SupabaseDiscoveryService implements DiscoveryService {
     String userId,
   ) async {
     // Live columns: id, user_id, event_id, status, created_at.
-    await _client.from('event_participation').upsert(
-      {
-        'event_id': eventId,
-        'user_id': userId,
-        'status': rsvpStatus,
-      },
-      onConflict: 'user_id,event_id',
-    );
+    await _client.from('event_participation').upsert({
+      'event_id': eventId,
+      'user_id': userId,
+      'status': rsvpStatus,
+    }, onConflict: 'user_id,event_id');
   }
 
   @override
-  Stream<List<Map<String, dynamic>>> getMyParticipations(
-    String userId,
-  ) {
+  Future<void> removeRsvp(String eventId, String userId) async {
+    await _client
+        .from('event_participation')
+        .delete()
+        .eq('user_id', userId)
+        .eq('event_id', eventId);
+  }
+
+  @override
+  Stream<List<Map<String, dynamic>>> getMyParticipations(String userId) {
     return _client
         .from('event_participation')
         .stream(primaryKey: ['id'])
@@ -339,10 +346,9 @@ class SupabaseDiscoveryService implements DiscoveryService {
 /// ---------------------------------------------------------------------------
 class MockDiscoveryService implements DiscoveryService {
   @override
-  Stream<List<EventItem>> get featuredEvents =>
-      Stream.value(SupabaseDiscoveryService._mockEvents
-          .where((e) => e.isFeatured)
-          .toList());
+  Stream<List<EventItem>> get featuredEvents => Stream.value(
+    SupabaseDiscoveryService._mockEvents.where((e) => e.isFeatured).toList(),
+  );
 
   @override
   Stream<List<EventItem>> get promoteTownsAndEvents =>
@@ -354,39 +360,45 @@ class MockDiscoveryService implements DiscoveryService {
 
   @override
   Stream<List<Municipality>> get municipalities => Stream.value(
-        RizalMunicipalities.all
-            .map((m) => Municipality(
-                  id: m.id,
-                  name: m.name,
-                  slug: m.id.replaceAll('_', '-'),
-                  description: m.description,
-                  latitude: m.geofenceLat,
-                  longitude: m.geofenceLng,
-                  geofenceRadiusMeters: m.geofenceRadiusMeters,
-                  tourismOfficeName: m.tourismOfficeContact,
-                ))
-            .toList(),
-      );
+    RizalMunicipalities.all
+        .map(
+          (m) => Municipality(
+            id: m.id,
+            name: m.name,
+            slug: m.id.replaceAll('_', '-'),
+            description: m.description,
+            latitude: m.geofenceLat,
+            longitude: m.geofenceLng,
+            geofenceRadiusMeters: m.geofenceRadiusMeters,
+            tourismOfficeName: m.tourismOfficeContact,
+          ),
+        )
+        .toList(),
+  );
 
   @override
-  Future<List<EventItem>> getEventsByMunicipality(String municipalityId) async =>
-      SupabaseDiscoveryService._mockEvents
-          .where((e) => e.municipalityId == municipalityId)
-          .toList();
+  Future<List<EventItem>> getEventsByMunicipality(
+    String municipalityId,
+  ) async => SupabaseDiscoveryService._mockEvents
+      .where((e) => e.municipalityId == municipalityId)
+      .toList();
 
   @override
-  Future<List<PoiLogistics>> getPoisByMunicipality(String municipalityId) async =>
-      SupabaseDiscoveryService._mockPois
-          .where((p) => p.municipalityId == municipalityId)
-          .toList();
+  Future<List<PoiLogistics>> getPoisByMunicipality(
+    String municipalityId,
+  ) async => SupabaseDiscoveryService._mockPois
+      .where((p) => p.municipalityId == municipalityId)
+      .toList();
 
   @override
   Future<List<EventItem>> searchEvents(String query) async {
     final q = query.toLowerCase();
     return SupabaseDiscoveryService._mockEvents
-        .where((e) =>
-            e.title.toLowerCase().contains(q) ||
-            (e.description ?? '').toLowerCase().contains(q))
+        .where(
+          (e) =>
+              e.title.toLowerCase().contains(q) ||
+              (e.description ?? '').toLowerCase().contains(q),
+        )
         .toList();
   }
 
@@ -413,8 +425,7 @@ class MockDiscoveryService implements DiscoveryService {
         score += ((event.promotionWeight - 1.0) * 40).round();
       }
       return event.withPromotedRank(score);
-    }).toList()
-      ..sort((a, b) => b.promotedRank.compareTo(a.promotedRank));
+    }).toList()..sort((a, b) => b.promotedRank.compareTo(a.promotedRank));
   }
 
   @override
@@ -423,6 +434,11 @@ class MockDiscoveryService implements DiscoveryService {
     String rsvpStatus,
     String userId,
   ) async {
+    // No-op in mock mode.
+  }
+
+  @override
+  Future<void> removeRsvp(String eventId, String userId) async {
     // No-op in mock mode.
   }
 

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/constants/app_constants.dart';
+
+import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/auth_gate.dart';
 import '../../../core/utils/maps_launcher.dart';
 import '../../../core/utils/tourism_images.dart';
+import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/poi_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../models/poi_logistics.dart';
@@ -25,6 +27,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   String? _municipalityId;
+  String? _barangay;
   String? _categoryId;
   bool _promotedOnly = false;
 
@@ -42,8 +45,14 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppConstants.uniqueFoodsRestaurants),
+        title: const Text(
+          'Rizal Event Hub — Province of Rizal',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
         centerTitle: true,
+        backgroundColor: const Color(0xFF033300),
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Column(
         children: [
@@ -84,11 +93,38 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                   _Pill(
                     label: entry.value,
                     selected: _municipalityId == entry.key,
-                    onTap: () => setState(() => _municipalityId = entry.key),
+                    onTap: () => setState(() {
+                      _municipalityId = entry.key;
+                      _barangay = null;
+                    }),
                   ),
               ],
             ),
           ),
+          // Barangay sub-filter, only relevant once a municipality is chosen.
+          if (_municipalityId != null)
+            SizedBox(
+              height: 48,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                children: [
+                  _Pill(
+                    label: 'All barangays',
+                    selected: _barangay == null,
+                    onTap: () => setState(() => _barangay = null),
+                  ),
+                  for (final b in RizalBarangays.forMunicipality(
+                    _municipalityId!,
+                  ))
+                    _Pill(
+                      label: b,
+                      selected: _barangay == b,
+                      onTap: () => setState(() => _barangay = b),
+                    ),
+                ],
+              ),
+            ),
           SizedBox(
             height: 48,
             child: ListView(
@@ -98,7 +134,10 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                 _Pill(
                   label: 'All categories',
                   selected: _categoryId == null && !_promotedOnly,
-                  onTap: () => setState(() => _categoryId = null),
+                  onTap: () => setState(() {
+                    _categoryId = null;
+                    _promotedOnly = false;
+                  }),
                 ),
                 for (final entry in _sorted(labels.categoryNames))
                   _Pill(
@@ -120,10 +159,35 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               builder: (context, snap) {
                 final pois = _filter(snap.data ?? [], labels);
                 if (pois.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No places match your search.',
-                      style: TextStyle(color: Color(0xFF6B6B6B)),
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const _PoiListSkeleton();
+                  }
+                  final filtered =
+                      _municipalityId != null ||
+                      _barangay != null ||
+                      _categoryId != null ||
+                      _promotedOnly ||
+                      _query.trim().isNotEmpty;
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'No places match your search.',
+                          style: TextStyle(color: Color(0xFF6B6B6B)),
+                        ),
+                        if (filtered)
+                          TextButton(
+                            onPressed: _clearFilters,
+                            child: const Text(
+                              'Clear filters',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF033300),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   );
                 }
@@ -132,19 +196,26 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                   itemCount: pois.length,
                   itemBuilder: (_, i) {
                     final p = pois[i];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: PoiCard(
-                        name: p.name,
-                        municipality: labels.municipality(p.municipalityId),
-                        category: p.poiType ?? labels.category(p.categoryId),
-                        categoryKey: p.poiType ?? labels.category(p.categoryId),
-                        municipalityKey:
-                            labels.municipality(p.municipalityId),
-                        imageUrl: p.imageUrl,
-                        isSaved: saved.isPoiSaved(p.id),
-                        onToggleSave: () => _toggleSavedPoi(p),
-                        onTap: () => context.push('/poi/${p.id}'),
+                    return StaggeredFadeIn(
+                      key: ValueKey('poi-${p.id}'),
+                      index: i,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: PoiCard(
+                          name: p.name,
+                          municipality: labels.municipality(p.municipalityId),
+                          category: p.poiType ?? labels.category(p.categoryId),
+                          categoryKey:
+                              p.poiType ?? labels.category(p.categoryId),
+                          municipalityKey: labels.municipality(
+                            p.municipalityId,
+                          ),
+                          imageUrl: p.imageUrl,
+                          heroTag: 'poi-image-${p.id}',
+                          isSaved: saved.isPoiSaved(p.id),
+                          onToggleSave: () => _toggleSavedPoi(p),
+                          onTap: () => context.push('/poi/${p.id}'),
+                        ),
                       ),
                     );
                   },
@@ -155,6 +226,17 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
         ],
       ),
     );
+  }
+
+  void _clearFilters() {
+    _searchCtrl.clear();
+    setState(() {
+      _query = '';
+      _municipalityId = null;
+      _barangay = null;
+      _categoryId = null;
+      _promotedOnly = false;
+    });
   }
 
   List<MapEntry<String, String>> _sorted(Map<String, String> source) {
@@ -171,6 +253,15 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       }
       if (_categoryId != null && poi.categoryId != _categoryId) return false;
       if (_promotedOnly && !poi.isPromoted) return false;
+      if (_barangay != null) {
+        final needle = _barangay!.toLowerCase();
+        final place = [
+          poi.barangayId ?? '',
+          poi.address ?? '',
+          poi.howToGetThere ?? '',
+        ].join(' ').toLowerCase();
+        if (!place.contains(needle)) return false;
+      }
       if (q.isNotEmpty) {
         final haystack = [
           poi.name,
@@ -191,9 +282,28 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(isSaved ? 'Saved to Saved Places & Events' : 'Removed from saved'),
+        content: Text(
+          isSaved ? 'Saved to Saved Places & Events' : 'Removed from saved',
+        ),
         backgroundColor: const Color(0xFF033300),
         duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+}
+
+class _PoiListSkeleton extends StatelessWidget {
+  const _PoiListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 3,
+      physics: const NeverScrollableScrollPhysics(),
+      itemBuilder: (_, _) => const Padding(
+        padding: EdgeInsets.only(bottom: 16),
+        child: EventCardSkeleton(height: 248),
       ),
     );
   }
@@ -248,8 +358,9 @@ class PoiDetailPage extends ConsumerWidget {
       builder: (context, snap) {
         final pois = snap.data ?? [];
         final matches = pois.where((p) => p.id == poiId).toList();
-        final savedMatches =
-            saved.savedPois.where((p) => p.id == poiId).toList();
+        final savedMatches = saved.savedPois
+            .where((p) => p.id == poiId)
+            .toList();
         if (matches.isEmpty && savedMatches.isEmpty) {
           return Scaffold(
             appBar: AppBar(title: const Text('Place')),
@@ -265,11 +376,11 @@ class PoiDetailPage extends ConsumerWidget {
             centerTitle: true,
             actions: [
               IconButton(
-                icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border),
-                tooltip: isSaved ? 'Remove bookmark' : 'Bookmark place',
+                icon: AnimatedBookmarkIcon(isSaved: isSaved),
                 onPressed: () async {
-                  final nowSaved =
-                      await ref.read(savedPlacesProvider).togglePoi(poi);
+                  final nowSaved = await ref
+                      .read(savedPlacesProvider)
+                      .togglePoi(poi);
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -287,12 +398,15 @@ class PoiDetailPage extends ConsumerWidget {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TourismImage(
-                imageUrl: poi.imageUrl,
-                category: poi.poiType ?? labels.category(poi.categoryId),
-                municipality: labels.municipality(poi.municipalityId),
-                height: 220,
-                borderRadius: BorderRadius.circular(16),
+              Hero(
+                tag: 'poi-image-${poi.id}',
+                child: TourismImage(
+                  imageUrl: poi.imageUrl,
+                  category: poi.poiType ?? labels.category(poi.categoryId),
+                  municipality: labels.municipality(poi.municipalityId),
+                  height: 220,
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -307,8 +421,10 @@ class PoiDetailPage extends ConsumerWidget {
               if (poi.address != null)
                 Text(
                   poi.address!,
-                  style:
-                      const TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF6B6B6B),
+                  ),
                 ),
               if (poi.operatingHours != null || poi.entranceFee != null) ...[
                 const SizedBox(height: 4),
@@ -317,15 +433,16 @@ class PoiDetailPage extends ConsumerWidget {
                     if (poi.operatingHours != null) poi.operatingHours!,
                     if (poi.entranceFee != null) 'Fee: ${poi.entranceFee}',
                   ].join(' · '),
-                  style:
-                      const TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B6B6B),
+                  ),
                 ),
               ],
               const SizedBox(height: 16),
               Text(
                 poi.description ?? '',
-                style:
-                    const TextStyle(fontSize: 16, color: Color(0xFF1B1B1B)),
+                style: const TextStyle(fontSize: 16, color: Color(0xFF1B1B1B)),
               ),
               const SizedBox(height: 24),
               const SectionHeader(
@@ -336,16 +453,18 @@ class PoiDetailPage extends ConsumerWidget {
               if (poi.howToGetThere != null && poi.howToGetThere!.isNotEmpty)
                 Text(
                   poi.howToGetThere!,
-                  style:
-                      const TextStyle(fontSize: 15, color: Color(0xFF1B1B1B)),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF1B1B1B),
+                  ),
                 ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.directions),
-                  label: const Text('Get Directions'),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('Open in Google Maps'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF033300),
                     side: const BorderSide(color: Color(0xFF033300)),
@@ -356,8 +475,7 @@ class PoiDetailPage extends ConsumerWidget {
               const SizedBox(height: 24),
               const SectionHeader(
                 title: 'Tourism Coordinator',
-                subtitle:
-                    'Contact the municipal Tourism Coordinator — sign in required',
+                subtitle: 'Contact the municipal Tourism Coordinator — sign in required',
               ),
               const SizedBox(height: 12),
               ListTile(
@@ -366,8 +484,9 @@ class PoiDetailPage extends ConsumerWidget {
                   'Send an inquiry',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                subtitle:
-                    const Text('Routed to this municipality’s Tourism Office'),
+                subtitle: const Text(
+                  'Routed to this municipality’s Tourism Office',
+                ),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () => _openInquiry(context, ref, poi.municipalityId),
               ),
@@ -399,7 +518,9 @@ class PoiDetailPage extends ConsumerWidget {
     );
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open Google Maps on this device.')),
+        const SnackBar(
+          content: Text('Could not open Google Maps on this device.'),
+        ),
       );
     }
   }
@@ -428,7 +549,9 @@ class DirectionsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Directions'), centerTitle: true),
       body: const Center(
-        child: Text('Open Google Maps from any event or place to get directions.'),
+        child: Text(
+          'Open Google Maps from any event or place to get directions.',
+        ),
       ),
     );
   }

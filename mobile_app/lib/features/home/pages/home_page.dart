@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/categories.dart';
 import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/event_card.dart';
+import '../../../core/widgets/hero_carousel.dart';
 import '../../../core/widgets/municipality_chip.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../models/event_item.dart';
 import '../../../services/lookup_service.dart';
+import '../../notifications/notification_state.dart';
 
 /// Home / Discovery Hub — live civic broadcast banner, featured events,
 /// "Promote Towns and Events", municipality + barangay + category filters.
@@ -33,6 +38,14 @@ class _HomePageState extends ConsumerState<HomePage> {
     final discovery = ref.read(discoveryServiceProvider);
     final labels = ref.watch(lookupsProvider).valueOrNull ?? LookupTables.empty;
     final saved = ref.watch(savedPlacesProvider);
+    final settings = ref.watch(appSettingsProvider);
+    final onboarding = ref.watch(onboardingControllerProvider);
+
+    // Saved onboarding interests feed the "Promote Towns and Events" ranking
+    // only while Rizal Events Hub Recommendations are enabled in Settings.
+    final interestCategoryIds = settings.recommendationsEnabled
+        ? _interestCategoryIds(onboarding.interests)
+        : const <String>[];
 
     final barangays = _selectedMunicipalityId != null
         ? RizalBarangays.forMunicipality(_selectedMunicipalityId!)
@@ -40,12 +53,61 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppConstants.appName),
+        title: const Text(
+          'Rizal Event Hub — Province of Rizal',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
         centerTitle: true,
+        backgroundColor: const Color(0xFF033300),
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+          const _NotificationBell(),
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onSelected: (value) => context.push(value),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: '/assistant',
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.chat_bubble_outline,
+                    color: Color(0xFF033300),
+                  ),
+                  title: Text('AI Assistant'),
+                ),
+              ),
+              PopupMenuItem(
+                value: '/coordinators',
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.business, color: Color(0xFF033300)),
+                  title: Text('Tourism Coordinators'),
+                ),
+              ),
+              PopupMenuItem(
+                value: '/settings',
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.settings_outlined,
+                    color: Color(0xFF033300),
+                  ),
+                  title: Text('App Settings'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -63,6 +125,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                 dismissedIds: _dismissedBroadcasts,
                 onDismiss: (id) => setState(() => _dismissedBroadcasts.add(id)),
               ),
+              const HeroCarousel(),
+              const SizedBox(height: 18),
               const Text(
                 'Discover Rizal',
                 style: TextStyle(
@@ -103,7 +167,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                         isSelected: selected,
                         onSelected: () {
                           setState(() {
-                            _selectedMunicipalityId = m.id;
+                            final alreadySelected =
+                                _selectedMunicipalityId == m.id;
+                            _selectedMunicipalityId = alreadySelected
+                                ? null
+                                : m.id;
                             _selectedBarangayName = null;
                           });
                         },
@@ -190,8 +258,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                         name: c.name,
                         color: c.color,
                         isSelected: selected,
-                        onSelected: () =>
-                            setState(() => _selectedCategoryId = c.id),
+                        onSelected: () => setState(
+                          () => _selectedCategoryId = selected ? null : c.id,
+                        ),
                       ),
                     );
                   },
@@ -209,43 +278,58 @@ class _HomePageState extends ConsumerState<HomePage> {
                 child: StreamBuilder<List<EventItem>>(
                   stream: discovery.promoteTownsAndEvents,
                   builder: (context, snap) {
-                    final events = snap.data ?? [];
+                    final events = _applyFilters(snap.data ?? []);
                     final promoted = discovery.scorePromoteTownsAndEvents(
                       events: events,
-                      userInterestCategoryIds:
-                          _selectedCategoryId != null
-                              ? [_selectedCategoryId!]
-                              : [],
+                      userInterestCategoryIds: _selectedCategoryId != null
+                          ? [_selectedCategoryId!]
+                          : interestCategoryIds,
                       municipalityVisitCounts: {},
                     );
                     if (promoted.isEmpty) {
-                      return const _EmptyRail(label: 'Promoted events loading…');
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const EventRailSkeleton();
+                      }
+                      return _EmptyRail(
+                        label: _hasFilters
+                            ? 'No promoted events match these filters.'
+                            : 'No promoted events yet.',
+                        onClear: _hasFilters ? _clearFilters : null,
+                      );
                     }
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: promoted.length,
                       itemBuilder: (_, i) {
                         final e = promoted[i];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: SizedBox(
-                            width: 216,
-                            child: EventCard(
-                              title: e.title,
-                              municipality:
-                                  labels.municipality(e.municipalityId),
-                              date: dateFormat.format(e.startDate),
-                              category: labels.category(e.categoryId),
-                              categoryKey: labels.category(e.categoryId),
-                              municipalityKey:
-                                  labels.municipality(e.municipalityId),
-                              imageUrl: e.imageUrl,
-                              isPromoted: e.promotedRank > 0,
-                              isFeatured: e.isFeatured,
-                              isSaved: saved.isEventSaved(e.id),
-                              onToggleSave: () => _toggleSavedEvent(e),
-                              onTap: () =>
-                                  Navigator.of(context).pushNamed('/event/${e.id}'),
+                        return StaggeredFadeIn(
+                          key: ValueKey('promoted-${e.id}'),
+                          index: i,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: SizedBox(
+                              width: 216,
+                              child: EventCard(
+                                title: e.title,
+                                municipality: labels.municipality(
+                                  e.municipalityId,
+                                ),
+                                date: dateFormat.format(e.startDate),
+                                category: labels.category(e.categoryId),
+                                categoryKey: labels.category(e.categoryId),
+                                municipalityKey: labels.municipality(
+                                  e.municipalityId,
+                                ),
+                                imageUrl: e.imageUrl,
+                                heroTag: 'home-promoted-${e.id}',
+                                isPromoted: e.promotedRank > 0,
+                                isFeatured: e.isFeatured,
+                                isSaved: saved.isEventSaved(e.id),
+                                onToggleSave: () => _toggleSavedEvent(e),
+                                onTap: () => context.push(
+                                  '/event/${e.id}?hero=home-promoted-${e.id}',
+                                ),
+                              ),
                             ),
                           ),
                         );
@@ -259,41 +343,57 @@ class _HomePageState extends ConsumerState<HomePage> {
               // Featured Events
               SectionHeader(
                 title: AppConstants.featuredEvents,
-                onSeeAll: () => Navigator.of(context).pushNamed('/events'),
+                onSeeAll: () => context.go('/events'),
               ),
               SizedBox(
                 height: 244,
                 child: StreamBuilder<List<EventItem>>(
                   stream: discovery.featuredEvents,
                   builder: (context, snap) {
-                    final events = snap.data ?? [];
+                    final events = _applyFilters(snap.data ?? []);
                     if (events.isEmpty) {
-                      return const _EmptyRail(label: 'No featured events yet.');
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const EventRailSkeleton();
+                      }
+                      return _EmptyRail(
+                        label: _hasFilters
+                            ? 'No featured events match these filters.'
+                            : 'No featured events yet.',
+                        onClear: _hasFilters ? _clearFilters : null,
+                      );
                     }
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: events.length,
                       itemBuilder: (_, i) {
                         final e = events[i];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: SizedBox(
-                            width: 216,
-                            child: EventCard(
-                              title: e.title,
-                              municipality:
-                                  labels.municipality(e.municipalityId),
-                              date: dateFormat.format(e.startDate),
-                              category: labels.category(e.categoryId),
-                              categoryKey: labels.category(e.categoryId),
-                              municipalityKey:
-                                  labels.municipality(e.municipalityId),
-                              imageUrl: e.imageUrl,
-                              isFeatured: true,
-                              isSaved: saved.isEventSaved(e.id),
-                              onToggleSave: () => _toggleSavedEvent(e),
-                              onTap: () => Navigator.of(context)
-                                  .pushNamed('/event/${e.id}'),
+                        return StaggeredFadeIn(
+                          key: ValueKey('featured-${e.id}'),
+                          index: i,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: SizedBox(
+                              width: 216,
+                              child: EventCard(
+                                title: e.title,
+                                municipality: labels.municipality(
+                                  e.municipalityId,
+                                ),
+                                date: dateFormat.format(e.startDate),
+                                category: labels.category(e.categoryId),
+                                categoryKey: labels.category(e.categoryId),
+                                municipalityKey: labels.municipality(
+                                  e.municipalityId,
+                                ),
+                                imageUrl: e.imageUrl,
+                                heroTag: 'home-featured-${e.id}',
+                                isFeatured: true,
+                                isSaved: saved.isEventSaved(e.id),
+                                onToggleSave: () => _toggleSavedEvent(e),
+                                onTap: () => context.push(
+                                  '/event/${e.id}?hero=home-featured-${e.id}',
+                                ),
+                              ),
                             ),
                           ),
                         );
@@ -310,15 +410,73 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  bool get _hasFilters =>
+      _selectedMunicipalityId != null ||
+      _selectedBarangayName != null ||
+      _selectedCategoryId != null;
+
+  /// Applies the live municipality / barangay / category chips to the event
+  /// rails. Barangay matching uses the record's barangay id plus its venue and
+  /// directions text, because `events.barangay_id` is a UUID that is not always
+  /// populated.
+  List<EventItem> _applyFilters(List<EventItem> events) {
+    if (!_hasFilters) return events;
+    final barangay = _selectedBarangayName?.toLowerCase();
+    return events.where((event) {
+      if (_selectedMunicipalityId != null &&
+          event.municipalityId != _selectedMunicipalityId) {
+        return false;
+      }
+      if (_selectedCategoryId != null &&
+          event.categoryId != _selectedCategoryId) {
+        return false;
+      }
+      if (barangay != null) {
+        final haystack = [
+          event.barangayId ?? '',
+          event.venueName ?? '',
+          event.howToGetThere ?? '',
+        ].join(' ').toLowerCase();
+        if (!haystack.contains(barangay)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _selectedMunicipalityId = null;
+      _selectedBarangayName = null;
+      _selectedCategoryId = null;
+    });
+  }
+
+  /// Maps onboarding interest slugs/ids onto category ids used by the scorer.
+  static List<String> _interestCategoryIds(List<String> interests) {
+    final ids = <String>[];
+    for (final interest in interests) {
+      for (final category in TourismCategories.all) {
+        if (category.id == interest || category.slug == interest) {
+          if (!ids.contains(category.id)) ids.add(category.id);
+        }
+      }
+    }
+    return ids;
+  }
+
   Future<void> _toggleSavedEvent(EventItem event) async {
     final saved = await ref.read(savedPlacesProvider).toggleEvent(event);
     final user = ref.read(authServiceProvider).currentUser;
-    if (saved && user != null) {
-      // Signed-in saves also register interest in event_participation.
+    if (user != null) {
+      // Signed-in saves also register interest in event_participation; removing
+      // the bookmark clears that row again.
       try {
-        await ref
-            .read(discoveryServiceProvider)
-            .rsvpEvent(event.id, 'interested', user.id);
+        final discovery = ref.read(discoveryServiceProvider);
+        if (saved) {
+          await discovery.rsvpEvent(event.id, 'interested', user.id);
+        } else {
+          await discovery.removeRsvp(event.id, user.id);
+        }
       } catch (_) {
         // Bookmarking must never fail because the RSVP write failed.
       }
@@ -326,9 +484,38 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(saved ? 'Saved to Saved Places & Events' : 'Removed from saved'),
+        content: Text(
+          saved ? 'Saved to Saved Places & Events' : 'Removed from saved',
+        ),
         backgroundColor: const Color(0xFF033300),
         duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+}
+
+/// Bell icon with a live unread badge for the Notification Inbox.
+class _NotificationBell extends ConsumerWidget {
+  const _NotificationBell();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifications = ref.watch(appNotificationsProvider);
+    final controller = ref.watch(notificationsControllerProvider);
+    final unread = controller.unreadCount(notifications);
+
+    return IconButton(
+      tooltip: 'Notifications',
+      onPressed: () => context.push('/notifications'),
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text(unread > 9 ? '9+' : '$unread'),
+        backgroundColor: const Color(0xFFFFC800),
+        textColor: const Color(0xFF033300),
+        child: const Icon(
+          Icons.notifications_outlined,
+          color: Color(0xFFFFC800),
+        ),
       ),
     );
   }
@@ -452,14 +639,34 @@ class _CivicBroadcastBanner extends StatelessWidget {
 
 class _EmptyRail extends StatelessWidget {
   final String label;
-  const _EmptyRail({required this.label});
+  final VoidCallback? onClear;
+
+  const _EmptyRail({required this.label, this.onClear});
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+          ),
+          if (onClear != null)
+            TextButton(
+              onPressed: onClear,
+              child: const Text(
+                'Clear filters',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF033300),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/auth/pages/login_page.dart';
+import '../../features/auth/pages/login_page.dart'
+    show SignupPage, OAuthCallbackPage, InterestOnboardingPage;
+import '../../features/onboarding/onboarding_flow.dart';
+import '../../features/onboarding/onboarding_provider.dart';
+import '../../features/auth/pages/login_screen.dart';
 import '../../features/home/pages/home_page.dart';
 import '../../features/explore/pages/explore_page.dart';
-import '../../features/events/pages/events_page.dart';
+import '../../features/events/pages/events_page.dart' show EventsPage;
+import '../../features/events/pages/event_detail_page.dart';
+import '../../features/saved/pages/saved_page.dart';
+import '../../features/notifications/pages/notifications_page.dart';
 import '../../features/coordinators/pages/coordinators_page.dart'
     show CoordinatorsPage, InquiryPage;
 import '../../features/assistant/pages/assistant_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/profile/pages/geofence_simulator_page.dart';
 import '../../features/submissions/pages/submit_content_page.dart';
+import '../../features/settings/pages/settings_page.dart';
 
 /// GoRouter configuration with a BottomNavigationBar shell.
 ///
@@ -23,6 +31,22 @@ import '../../features/submissions/pages/submit_content_page.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   debugLogDiagnostics: false,
+  // Re-evaluate the redirect whenever onboarding completes or is replayed.
+  refreshListenable: onboardingController,
+  redirect: (context, state) {
+    // `main.dart` awaits the persisted flag before the app starts; this guard
+    // only matters if the controller is somehow used before that finishes.
+    if (onboardingController.isLoading) return null;
+    final location = state.matchedLocation;
+    final inOnboarding =
+        location == '/onboarding' || location.startsWith('/onboarding/');
+    if (!onboardingController.hasCompleted) {
+      return inOnboarding ? null : '/onboarding';
+    }
+    // Finished (or replayed and then completed) — leave the welcome flow.
+    if (location == '/onboarding') return '/';
+    return null;
+  },
   routes: [
     ShellRoute(
       builder: (context, state, child) => _BottomNavShell(child: child),
@@ -41,6 +65,11 @@ final GoRouter appRouter = GoRouter(
           path: '/events',
           name: 'events',
           builder: (context, state) => const EventsPage(),
+        ),
+        GoRoute(
+          path: '/saved',
+          name: 'saved',
+          builder: (context, state) => const SavedPage(),
         ),
         GoRoute(
           path: '/coordinators',
@@ -71,6 +100,16 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const SignupPage(),
     ),
     GoRoute(
+      path: '/settings',
+      name: 'settings',
+      builder: (context, state) => const SettingsPage(),
+    ),
+    GoRoute(
+      path: '/notifications',
+      name: 'notifications',
+      builder: (context, state) => const NotificationsPage(),
+    ),
+    GoRoute(
       path: '/auth-callback',
       name: 'auth_callback',
       builder: (context, state) => const OAuthCallbackPage(),
@@ -82,6 +121,11 @@ final GoRouter appRouter = GoRouter(
           SubmitContentPage(type: state.pathParameters['type'] ?? 'event'),
     ),
     GoRoute(
+      path: '/onboarding',
+      name: 'onboarding',
+      builder: (context, state) => const OnboardingFlow(),
+    ),
+    GoRoute(
       path: '/onboarding/interests',
       name: 'interest_onboarding',
       builder: (context, state) => const InterestOnboardingPage(),
@@ -90,7 +134,8 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/poi/:id',
       name: 'poi_detail',
-      builder: (context, state) => PoiDetailPage(poiId: state.pathParameters['id']!),
+      builder: (context, state) =>
+          PoiDetailPage(poiId: state.pathParameters['id']!),
     ),
     GoRoute(
       path: '/directions',
@@ -100,7 +145,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/event/:id',
       name: 'event_detail',
-      builder: (context, state) => EventDetailPage(eventId: state.pathParameters['id']!),
+      builder: (context, state) => EventDetailPage(
+        eventId: state.pathParameters['id']!,
+        // Optional Hero tag handed over by a card so the photo can fly
+        // between the list and this page.
+        heroTag: state.uri.queryParameters['hero'],
+      ),
     ),
     GoRoute(
       path: '/inquiry/:municipalityId',
@@ -127,12 +177,14 @@ class _BottomNavShell extends StatefulWidget {
 class _BottomNavShellState extends State<_BottomNavShell> {
   int _selectedIndex = 0;
 
+  // Five primary tabs keep labels readable on narrow phones; the Tourism
+  // Coordinator directory and the AI Assistant stay reachable from the Home
+  // overflow menu, so their routes are unchanged.
   static const List<String> _routes = [
     '/',
     '/explore',
     '/events',
-    '/coordinators',
-    '/assistant',
+    '/saved',
     '/profile',
   ];
 
@@ -140,17 +192,23 @@ class _BottomNavShellState extends State<_BottomNavShell> {
     'Home',
     'Explore',
     'Events',
-    'Coordinators',
-    'Assistant',
+    'Saved',
     'Profile',
   ];
 
   static const List<IconData> _icons = [
+    Icons.home_outlined,
+    Icons.explore_outlined,
+    Icons.event_outlined,
+    Icons.bookmark_border,
+    Icons.person_outline,
+  ];
+
+  static const List<IconData> _activeIcons = [
     Icons.home,
     Icons.explore,
     Icons.event,
-    Icons.business,
-    Icons.chat,
+    Icons.bookmark,
     Icons.person,
   ];
 
@@ -162,7 +220,9 @@ class _BottomNavShellState extends State<_BottomNavShell> {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    _selectedIndex = _routes.indexWhere((r) => location == r || location.startsWith('$r/'));
+    _selectedIndex = _routes.indexWhere(
+      (r) => location == r || location.startsWith('$r/'),
+    );
     if (_selectedIndex == -1) _selectedIndex = 0;
 
     return Scaffold(
@@ -174,7 +234,7 @@ class _BottomNavShellState extends State<_BottomNavShell> {
           _routes.length,
           (i) => BottomNavigationBarItem(
             icon: Icon(_icons[i]),
-            activeIcon: Icon(_icons[i], color: const Color(0xFF033300)),
+            activeIcon: Icon(_activeIcons[i], color: const Color(0xFF033300)),
             label: _labels[i],
           ),
         ),

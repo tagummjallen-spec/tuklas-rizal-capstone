@@ -18,21 +18,28 @@ class AppTheme {
   static const Color accentGoldLight = Color(0xFFFFE37A);
   static const Color outlineColor = Color(0xFFE5E5E5);
 
-  static ThemeData lightTheme() {
+  /// [highContrast] strengthens text and outline contrast for the Settings
+  /// accessibility toggle (pure black text, darker borders, white surfaces).
+  static ThemeData lightTheme({bool highContrast = false}) {
+    final bodyColor = highContrast ? Colors.black : textPrimary;
+    final mutedColor = highContrast ? const Color(0xFF2B2B2B) : textSecondary;
+    final borderColor = highContrast ? const Color(0xFF1B1B1B) : outlineColor;
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: surfaceLight,
-      colorScheme: const ColorScheme.light(
+      scaffoldBackgroundColor: highContrast ? Colors.white : surfaceLight,
+      colorScheme: ColorScheme.light(
         primary: provincialGreen,
         secondary: provincialGold,
         surface: surfaceCard,
         onPrimary: Colors.white,
         onSecondary: provincialGreen,
-        onSurface: textPrimary,
+        onSurface: bodyColor,
+        outline: borderColor,
       ),
       textTheme: GoogleFonts.poppinsTextTheme(
-        const TextTheme(
+        TextTheme(
           displayLarge: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.w700,
@@ -61,17 +68,17 @@ class AppTheme {
           bodyLarge: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w400,
-            color: textPrimary,
+            color: bodyColor,
           ),
           bodyMedium: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,
-            color: textSecondary,
+            color: mutedColor,
           ),
           labelLarge: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: textPrimary,
+            color: bodyColor,
           ),
         ),
       ),
@@ -106,22 +113,27 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: outlineColor),
+          borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: outlineColor),
+          borderSide: BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: provincialGreen, width: 2),
         ),
-        labelStyle: const TextStyle(color: textSecondary),
+        labelStyle: TextStyle(color: mutedColor),
       ),
       cardTheme: CardThemeData(
         color: surfaceCard,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: highContrast ? 0 : 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: highContrast
+              ? const BorderSide(color: Color(0xFF1B1B1B))
+              : BorderSide.none,
+        ),
         margin: const EdgeInsets.symmetric(vertical: 8),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/tourism_images.dart';
+import 'app_motion.dart';
 
 /// Reusable POI (point of interest) card with a Rizal photography fallback and
 /// a bookmark toggle.
@@ -15,6 +16,9 @@ class PoiCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onToggleSave;
 
+  /// Shared Hero tag with `PoiDetailPage` for a photo transition.
+  final String? heroTag;
+
   const PoiCard({
     super.key,
     required this.name,
@@ -26,6 +30,7 @@ class PoiCard extends StatelessWidget {
     this.isSaved = false,
     required this.onTap,
     this.onToggleSave,
+    this.heroTag,
   });
 
   @override
@@ -44,11 +49,21 @@ class PoiCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  TourismImage(
-                    imageUrl: imageUrl,
-                    category: categoryKey ?? category,
-                    municipality: municipalityKey,
-                  ),
+                  if (heroTag != null)
+                    Hero(
+                      tag: heroTag!,
+                      child: TourismImage(
+                        imageUrl: imageUrl,
+                        category: categoryKey ?? category,
+                        municipality: municipalityKey,
+                      ),
+                    )
+                  else
+                    TourismImage(
+                      imageUrl: imageUrl,
+                      category: categoryKey ?? category,
+                      municipality: municipalityKey,
+                    ),
                   if (onToggleSave != null)
                     Positioned(
                       top: 6,
@@ -61,10 +76,9 @@ class PoiCard extends StatelessWidget {
                           onTap: onToggleSave,
                           child: Padding(
                             padding: const EdgeInsets.all(6),
-                            child: Icon(
-                              isSaved ? Icons.bookmark : Icons.bookmark_border,
+                            child: AnimatedBookmarkIcon(
+                              isSaved: isSaved,
                               size: 18,
-                              color: const Color(0xFF033300),
                             ),
                           ),
                         ),
@@ -92,8 +106,11 @@ class PoiCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.location_city,
-                          size: 13, color: Color(0xFF6B6B6B)),
+                      const Icon(
+                        Icons.location_city,
+                        size: 13,
+                        color: Color(0xFF6B6B6B),
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -110,8 +127,10 @@ class PoiCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF7F6F2),
                       borderRadius: BorderRadius.circular(5),
