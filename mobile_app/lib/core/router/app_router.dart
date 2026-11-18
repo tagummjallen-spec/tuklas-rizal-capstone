@@ -10,6 +10,7 @@ import '../../features/coordinators/pages/coordinators_page.dart'
 import '../../features/assistant/pages/assistant_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/profile/pages/geofence_simulator_page.dart';
+import '../../features/submissions/pages/submit_content_page.dart';
 
 /// GoRouter configuration with a BottomNavigationBar shell.
 ///
@@ -68,6 +69,17 @@ final GoRouter appRouter = GoRouter(
       path: '/signup',
       name: 'signup',
       builder: (context, state) => const SignupPage(),
+    ),
+    GoRoute(
+      path: '/auth-callback',
+      name: 'auth_callback',
+      builder: (context, state) => const OAuthCallbackPage(),
+    ),
+    GoRoute(
+      path: '/submit/:type',
+      name: 'submit_content',
+      builder: (context, state) =>
+          SubmitContentPage(type: state.pathParameters['type'] ?? 'event'),
     ),
     GoRoute(
       path: '/onboarding/interests',

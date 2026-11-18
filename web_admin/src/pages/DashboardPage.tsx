@@ -17,6 +17,7 @@ import { describeError, supabase } from '../lib/supabase';
 import {
   canBroadcast,
   canHandleInquiries,
+  canReviewEvents,
   isProvincial,
   municipalityScope,
   type ViewKey,
@@ -79,6 +80,9 @@ export default function DashboardPage({
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [broadcastDone, setBroadcastDone] = useState<string | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const filters = useMemo(() => {
     const value: Record<string, string> = {};
@@ -133,6 +137,33 @@ export default function DashboardPage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const reviewer = canReviewEvents(profile);
+
+  const reviewEvent = async (
+    event: EventRecord,
+    status: 'approved' | 'rejected',
+  ) => {
+    setReviewingId(event.id);
+    setReviewError(null);
+    setReviewNotice(null);
+    const { error: updateError } = await supabase
+      .from('events')
+      .update({ status })
+      .eq('id', event.id);
+
+    if (updateError) {
+      setReviewError(describeError(updateError));
+    } else {
+      setReviewNotice(
+        status === 'approved'
+          ? `“${event.title}” approved and published to the mobile app.`
+          : `“${event.title}” rejected. The submitting barangay can revise and resubmit.`,
+      );
+      await load();
+    }
+    setReviewingId(null);
+  };
 
   const approvedEvents = events.filter((event) => event.status === 'approved');
   const pendingEvents = events.filter((event) => event.status === 'draft');
@@ -231,6 +262,16 @@ export default function DashboardPage({
           <Alert tone="error">{error}</Alert>
         </div>
       ) : null}
+      {reviewNotice ? (
+        <div className="mb-4">
+          <Alert tone="success">{reviewNotice}</Alert>
+        </div>
+      ) : null}
+      {reviewError ? (
+        <div className="mb-4">
+          <Alert tone="error">{reviewError}</Alert>
+        </div>
+      ) : null}
 
       {loading ? (
         <LoadingPanel label="Loading municipal metrics…" />
@@ -314,14 +355,23 @@ export default function DashboardPage({
             </Card>
 
             <Card className="p-5">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-forest">
-                Latest Events
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Most recently created records in your scope.
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-forest">
+                    {reviewer ? 'Pending Approvals' : 'Latest Events'}
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {reviewer
+                      ? 'One-click approve or reject Tier 1 barangay drafts.'
+                      : 'Most recently created records in your scope.'}
+                  </p>
+                </div>
+                {reviewer && pendingEvents.length > 0 ? (
+                  <Badge tone="gold">{pendingEvents.length} waiting</Badge>
+                ) : null}
+              </div>
               <ul className="mt-4 space-y-3">
-                {events.slice(0, 5).map((event) => (
+                {(reviewer ? pendingEvents : events).slice(0, 5).map((event) => (
                   <li
                     key={event.id}
                     className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2"
@@ -336,22 +386,47 @@ export default function DashboardPage({
                           ?.name ?? 'Rizal'}
                       </p>
                     </div>
-                    <Badge
-                      tone={
-                        event.status === 'approved'
-                          ? 'green'
-                          : event.status === 'rejected'
-                            ? 'red'
-                            : 'gold'
-                      }
-                    >
-                      {event.status}
-                    </Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <Badge
+                        tone={
+                          event.status === 'approved'
+                            ? 'green'
+                            : event.status === 'rejected'
+                              ? 'red'
+                              : 'gold'
+                        }
+                      >
+                        {event.status}
+                      </Badge>
+                      {reviewer && event.status === 'draft' ? (
+                        <div className="flex gap-1">
+                          <Button
+                            className="px-2 py-1 text-[11px]"
+                            disabled={reviewingId === event.id}
+                            onClick={() => void reviewEvent(event, 'approved')}
+                          >
+                            <Icon name="check" className="h-3 w-3" />
+                            Approve
+                          </Button>
+                          <Button
+                            variant="danger"
+                            className="px-2 py-1 text-[11px]"
+                            disabled={reviewingId === event.id}
+                            onClick={() => void reviewEvent(event, 'rejected')}
+                          >
+                            <Icon name="close" className="h-3 w-3" />
+                            Reject
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
-                {events.length === 0 ? (
+                {(reviewer ? pendingEvents : events).length === 0 ? (
                   <li className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
-                    No events yet.
+                    {reviewer
+                      ? 'No draft events awaiting review.'
+                      : 'No events yet.'}
                   </li>
                 ) : null}
               </ul>

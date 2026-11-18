@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
+import { GalleryUpload } from '../components/GalleryUpload';
 import {
   Alert,
   Badge,
@@ -50,6 +51,7 @@ interface EventFormState {
   end_date: string;
   latitude: string;
   longitude: string;
+  image_url: string;
   status: EventStatus;
   is_featured: boolean;
   promotion_weight: string;
@@ -72,6 +74,7 @@ function buildEmptyForm(profile: UserProfile, lookups: Lookups): EventFormState 
     end_date: toDateTimeInput(tomorrow.toISOString()),
     latitude: '',
     longitude: '',
+    image_url: '',
     status: forcedEventStatus(profile) ?? 'draft',
     is_featured: false,
     promotion_weight: '1.00',
@@ -164,6 +167,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
       end_date: toDateTimeInput(event.end_date),
       latitude: event.latitude === null ? '' : String(event.latitude),
       longitude: event.longitude === null ? '' : String(event.longitude),
+      image_url: event.image_url ?? '',
       status: event.status,
       is_featured: event.is_featured,
       promotion_weight: String(event.promotion_weight ?? 1),
@@ -200,6 +204,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
       end_date: end,
       latitude: numOrNull(form.latitude),
       longitude: numOrNull(form.longitude),
+      image_url: form.image_url || null,
       status: forcedEventStatus(profile) ?? form.status,
       is_featured: form.is_featured,
       promotion_weight: numOr(form.promotion_weight, 1),
@@ -456,6 +461,13 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
               placeholder="Annual celebration honoring San Clemente…"
             />
           </Field>
+
+          <GalleryUpload
+            folder="events"
+            label="Event photo"
+            value={form.image_url || null}
+            onChange={(url) => setForm({ ...form, image_url: url ?? '' })}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Municipality" required>

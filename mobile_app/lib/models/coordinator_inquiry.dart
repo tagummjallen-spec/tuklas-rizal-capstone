@@ -1,7 +1,7 @@
 /// Mirrors the live `public.coordinator_inquiries` table exactly.
 ///
 /// Columns: `id`, `municipality_id`, `user_id`, `subject`, `message`,
-/// `status`, `created_at`, `updated_at`.
+/// `coordinator_reply`, `status`, `created_at`, `updated_at`.
 ///
 /// The live table has NO `responded_at` column — writing it fails with PGRST204.
 /// `id` is a DB-generated UUID, so it is never sent by the app.
@@ -11,6 +11,7 @@ class CoordinatorInquiry {
   final String userId;
   final String subject;
   final String message;
+  final String? coordinatorReply;
   final String status; // 'open' | 'in_progress' | 'resolved' | 'closed'
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -21,6 +22,7 @@ class CoordinatorInquiry {
     required this.userId,
     required this.subject,
     required this.message,
+    this.coordinatorReply,
     this.status = 'open',
     required this.createdAt,
     required this.updatedAt,
@@ -33,6 +35,7 @@ class CoordinatorInquiry {
       userId: json['user_id'] as String,
       subject: json['subject'] as String? ?? '',
       message: json['message'] as String? ?? '',
+      coordinatorReply: json['coordinator_reply'] as String?,
       status: json['status'] as String? ?? 'open',
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.now(),
@@ -49,6 +52,7 @@ class CoordinatorInquiry {
       'user_id': userId,
       'subject': subject,
       'message': message,
+      'coordinator_reply': coordinatorReply,
       'status': status,
     };
   }
@@ -60,6 +64,7 @@ class CoordinatorInquiry {
       'user_id': userId,
       'subject': subject,
       'message': message,
+      'coordinator_reply': coordinatorReply,
       'status': status,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

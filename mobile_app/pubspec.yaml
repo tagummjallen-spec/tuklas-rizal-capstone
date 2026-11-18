@@ -32,6 +32,12 @@ dependencies:
   add_2_calendar: ^3.1.1
   url_launcher: ^6.3.1
 
+  # Gallery photo upload for event / POI submissions (Supabase Storage)
+  image_picker: ^1.1.2
+
+  # Local persistence for saved places & events (guests included)
+  shared_preferences: ^2.3.2
+
   # Date/time formatting
   intl: ^0.19.0
 

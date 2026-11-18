@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/constants/app_constants.dart';
 import '../models/user_profile.dart';
 
 /// Interface for authentication — mockable for offline UI testing.
@@ -26,6 +27,24 @@ abstract class AuthService {
   });
   Future<void> signOut();
   Future<void> updateProfile(UserProfile profile);
+
+  /// Google account picker via Supabase OAuth. Returns true when the platform
+  /// completed the flow in-place (web); on mobile the browser round-trip
+  /// resolves through [authStateChanges].
+  Future<bool> signInWithGoogle();
+
+  /// Confirms the 6-digit signup code sent by email and activates the profile.
+  Future<UserProfile> verifySignupOtp(String email, String token);
+
+  /// Re-sends the 6-digit signup code.
+  Future<void> resendSignupOtp(String email);
+
+  /// Creates the `public.users` row for an authenticated user who has none yet
+  /// (OAuth first sign-in or a confirmed email signup). Safe to call repeatedly.
+  Future<UserProfile?> ensureProfile();
+
+  /// Whether the user already picked tourism interests (first-run onboarding).
+  Future<bool> hasSavedInterests(String userId);
 
   /// Persist the user's selected tourism category ids (USER_INTERESTS).
   Future<void> setUserInterests(String userId, List<String> categoryIds);
@@ -71,8 +90,50 @@ class SupabaseAuthService implements AuthService {
       _client.auth.onAuthStateChange.asyncMap((data) async {
         final user = data.session?.user;
         if (user == null) return null;
-        return _fetchProfile(user.id);
+        final existing = await _fetchProfile(user.id);
+        if (existing != null) return existing;
+        // First sign-in (usually Google OAuth): create the public.users row.
+        return _createProfileFromAuthUser(user);
       });
+
+  /// Creates `public.users` for a first-time OAuth user.
+  ///
+  /// Google sign-ins are auto-approved. The capstone spec pins
+  /// `role_tier = 1`; the title stays "Resident & Tourist" so a tourist is not
+  /// presented as barangay staff in the app.
+  Future<UserProfile> _createProfileFromAuthUser(User user) async {
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final rawName = meta['full_name'] ?? meta['name'];
+    final rawAvatar = meta['avatar_url'] ?? meta['picture'];
+    final fullName = rawName is String && rawName.trim().isNotEmpty
+        ? rawName.trim()
+        : 'TuklasRizal Guest';
+    final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
+    const roleTier = 1;
+    const roleTitle = 'Resident & Tourist';
+    final email = user.email ?? '';
+
+    await _upsertProfileRow(
+      userId: user.id,
+      email: email,
+      fullName: fullName,
+      avatarUrl: avatarUrl,
+      roleTier: roleTier,
+      roleTitle: roleTitle,
+      isApproved: true,
+    );
+
+    return await _fetchProfile(user.id) ??
+        UserProfile(
+          id: user.id,
+          email: email,
+          fullName: fullName,
+          avatarUrl: avatarUrl,
+          roleTier: roleTier,
+          roleTitle: roleTitle,
+          isApproved: true,
+        );
+  }
 
   @override
   UserProfile? get currentUser {
@@ -193,8 +254,75 @@ class SupabaseAuthService implements AuthService {
     );
   }
 
+  @override
+  Future<bool> signInWithGoogle() async {
+    _emailConfirmationRequired = false;
+    return _client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: AppConstants.oauthRedirectUrl,
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
+  }
+
+  @override
+  Future<UserProfile> verifySignupOtp(String email, String token) async {
+    final response = await _client.auth.verifyOTP(
+      type: OtpType.signup,
+      email: email.trim(),
+      token: token.trim(),
+    );
+    final user = response.user;
+    if (user == null) {
+      throw Exception(
+        'That code is invalid or has expired. Request a new code and try again.',
+      );
+    }
+
+    final existing = await _fetchProfile(user.id);
+    if (existing != null) return existing;
+
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final rawName = meta['full_name'];
+    final fullName = rawName is String && rawName.isNotEmpty ? rawName : 'User';
+    final roleTier = UserProfile.parseRoleTier(meta['role_tier']);
+    await _upsertProfileRow(
+      userId: user.id,
+      email: user.email ?? email,
+      fullName: fullName,
+      roleTier: roleTier,
+      isApproved: roleTier < 1,
+    );
+
+    return await _fetchProfile(user.id) ??
+        UserProfile(
+          id: user.id,
+          email: user.email ?? email,
+          fullName: fullName,
+          roleTier: roleTier,
+        );
+  }
+
+  @override
+  Future<void> resendSignupOtp(String email) async {
+    await _client.auth.resend(type: OtpType.signup, email: email.trim());
+  }
+
+  @override
+  Future<bool> hasSavedInterests(String userId) async {
+    try {
+      final rows = await _client
+          .from('user_interests')
+          .select('category_id')
+          .eq('user_id', userId);
+      return rows.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Creates the `public.users` row for a confirmed signup that had no session
   /// at signUp time (email-confirmation flow). Safe to call repeatedly.
+  @override
   Future<UserProfile?> ensureProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
@@ -394,6 +522,33 @@ class MockAuthService implements AuthService {
 
   @override
   Future<void> setUserInterests(String userId, List<String> categoryIds) async {
-    // No-op in mock mode.
+    _interestsSaved = categoryIds.isNotEmpty;
   }
+
+  @override
+  Future<bool> signInWithGoogle() async {
+    await signIn('demo@tuklasrizal.app', 'google-demo');
+    return true;
+  }
+
+  @override
+  Future<UserProfile> verifySignupOtp(String email, String token) async {
+    if (token.trim().length != 6) {
+      throw Exception('Enter the 6-digit code from your email.');
+    }
+    return signUp(email, 'otp-demo', 'Demo Resident');
+  }
+
+  @override
+  Future<void> resendSignupOtp(String email) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+  }
+
+  @override
+  Future<UserProfile?> ensureProfile() async => _user;
+
+  @override
+  Future<bool> hasSavedInterests(String userId) async => _interestsSaved;
+
+  bool _interestsSaved = false;
 }

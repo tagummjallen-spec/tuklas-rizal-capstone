@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 /// Form I compliant labels and app-wide constants.
 ///
 /// Rules enforced here:
@@ -57,6 +59,19 @@ class AppConstants {
         !supabaseUrl.contains('your-project') &&
         supabaseAnonKey.isNotEmpty &&
         !supabaseAnonKey.contains('your-anon-key');
+  }
+
+  /// Where Supabase sends the browser/app after Google sign-in.
+  ///
+  /// Register both values in Supabase → Authentication → URL Configuration:
+  ///   `https://<your-domain>/**`     (web)
+  ///   io.supabase.tuklasrizal://login-callback   (Android/iOS)
+  ///
+  /// On web the code is returned to the origin and the app-level session
+  /// bootstrap routes first-time users to interest onboarding.
+  static String get oauthRedirectUrl {
+    if (kIsWeb) return Uri.base.origin;
+    return 'io.supabase.tuklasrizal://login-callback';
   }
 
   static const int defaultPageSize = 20;

@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
 
+import '../utils/tourism_images.dart';
+
 /// Reusable event card.
+///
+/// The card fills whatever height its parent gives it: the photo takes the
+/// remaining space (`Expanded`) and every text line is capped with
+/// `maxLines` + ellipsis, so no RenderFlex overflow stripes can appear at any
+/// viewport or text scale.
 class EventCard extends StatelessWidget {
   final String title;
   final String municipality;
   final String date;
   final String category;
-  final String imageUrl;
+  final String? imageUrl;
+
+  /// Raw category / municipality values used to pick the Rizal fallback photo.
+  final String? categoryKey;
+  final String? municipalityKey;
+
   final bool isPromoted;
   final bool isFeatured;
+  final bool isSaved;
   final VoidCallback onTap;
+  final VoidCallback? onToggleSave;
 
   const EventCard({
     super.key,
@@ -18,133 +32,101 @@ class EventCard extends StatelessWidget {
     required this.date,
     required this.category,
     required this.imageUrl,
+    this.categoryKey,
+    this.municipalityKey,
     this.isPromoted = false,
     this.isFeatured = false,
+    this.isSaved = false,
     required this.onTap,
+    this.onToggleSave,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Card(
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: Image.network(
-                    imageUrl,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 160,
-                      color: const Color(0xFFF7F6F2),
-                      child: const Icon(Icons.image, color: Color(0xFF033300)),
-                    ),
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  TourismImage(
+                    imageUrl: imageUrl,
+                    category: categoryKey ?? category,
+                    municipality: municipalityKey,
                   ),
-                ),
-                if (isPromoted)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFC800),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Promoted',
-                        style: TextStyle(
-                          color: Color(0xFF033300),
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  if (isPromoted)
+                    const Positioned(
+                      top: 6,
+                      left: 6,
+                      child: _Tag(
+                        text: 'Promoted',
+                        background: Color(0xFFFFC800),
+                        foreground: Color(0xFF033300),
                       ),
                     ),
-                  ),
-                if (isFeatured)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF033300),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Featured',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  if (isFeatured)
+                    const Positioned(
+                      top: 6,
+                      left: 6,
+                      child: _Tag(
+                        text: 'Featured',
+                        background: Color(0xFF033300),
+                        foreground: Colors.white,
                       ),
                     ),
-                  ),
-              ],
+                  if (onToggleSave != null)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: _SaveButton(
+                        isSaved: isSaved,
+                        onPressed: onToggleSave!,
+                      ),
+                    ),
+                ],
+              ),
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
+                      height: 1.2,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF1B1B1B),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 4),
+                  _MetaLine(icon: Icons.location_on, text: municipality),
+                  const SizedBox(height: 2),
+                  _MetaLine(icon: Icons.event, text: date),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on, size: 14, color: Color(0xFF6B6B6B)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          municipality,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF6B6B6B),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.event, size: 14, color: Color(0xFF6B6B6B)),
-                      const SizedBox(width: 4),
-                      Text(
-                        date,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF6B6B6B),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF7F6F2),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(5),
                     ),
                     child: Text(
                       category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF033300),
                       ),
@@ -154,6 +136,86 @@ class EventCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _MetaLine({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 12, color: const Color(0xFF6B6B6B)),
+        const SizedBox(width: 3),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11.5, color: Color(0xFF6B6B6B)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  final String text;
+  final Color background;
+  final Color foreground;
+  const _Tag({
+    required this.text,
+    required this.background,
+    required this.foreground,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+class _SaveButton extends StatelessWidget {
+  final bool isSaved;
+  final VoidCallback onPressed;
+  const _SaveButton({required this.isSaved, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.92),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(5),
+          child: Icon(
+            isSaved ? Icons.bookmark : Icons.bookmark_border,
+            size: 17,
+            color: const Color(0xFF033300),
+          ),
         ),
       ),
     );

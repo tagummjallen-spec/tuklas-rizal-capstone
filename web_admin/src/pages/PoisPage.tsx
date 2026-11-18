@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
+import { GalleryUpload } from '../components/GalleryUpload';
 import {
   Alert,
   Badge,
@@ -39,6 +40,7 @@ interface PoiFormState {
   entrance_fee: string;
   latitude: string;
   longitude: string;
+  image_url: string;
   is_promoted: boolean;
 }
 
@@ -57,6 +59,7 @@ function buildEmptyForm(profile: UserProfile, lookups: Lookups): PoiFormState {
     entrance_fee: '',
     latitude: '',
     longitude: '',
+    image_url: '',
     is_promoted: false,
   };
 }
@@ -136,6 +139,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
       entrance_fee: poi.entrance_fee ?? '',
       latitude: poi.latitude === null ? '' : String(poi.latitude),
       longitude: poi.longitude === null ? '' : String(poi.longitude),
+      image_url: poi.image_url ?? '',
       is_promoted: poi.is_promoted,
     });
     setFormError(null);
@@ -159,6 +163,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
       entrance_fee: form.entrance_fee.trim() || null,
       latitude: numOrNull(form.latitude),
       longitude: numOrNull(form.longitude),
+      image_url: form.image_url || null,
       is_promoted: form.is_promoted,
     };
 
@@ -399,6 +404,13 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
               placeholder="Iconic Angono art gallery and restaurant famous for traditional Rizal cuisine…"
             />
           </Field>
+
+          <GalleryUpload
+            folder="pois"
+            label="Place photo"
+            value={form.image_url || null}
+            onChange={(url) => setForm({ ...form, image_url: url ?? '' })}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="POI type" required>

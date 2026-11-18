@@ -5,20 +5,42 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/auth_gate.dart';
+import '../../../core/utils/maps_launcher.dart';
+import '../../../core/utils/tourism_images.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../models/event_item.dart';
+import '../../../services/lookup_service.dart';
 
-/// Events & Calendar — event listing, RSVP/participation, bookmarks.
-///
-/// Browsing is open to guests; RSVP and bookmarking require a session.
-class EventsPage extends ConsumerWidget {
+/// Events & Calendar — instant keyword search combined with Municipality,
+/// Category and Promoted filters, plus bookmarks and Maps directions.
+class EventsPage extends ConsumerStatefulWidget {
   const EventsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EventsPage> createState() => _EventsPageState();
+}
+
+class _EventsPageState extends ConsumerState<EventsPage> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  String? _municipalityId;
+  String? _categoryId;
+  bool _promotedOnly = false;
+
+  final dateFormat = DateFormat('MMM d, yyyy');
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final discovery = ref.read(discoveryServiceProvider);
-    final dateFormat = DateFormat('MMM d, yyyy');
+    final labels = ref.watch(lookupsProvider).valueOrNull ?? LookupTables.empty;
+    final saved = ref.watch(savedPlacesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -28,54 +50,125 @@ class EventsPage extends ConsumerWidget {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (value) => setState(() => _query = value),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search events, venues, towns…',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              children: [
+                _FilterPill(
+                  label: 'All 14 towns',
+                  selected: _municipalityId == null,
+                  onTap: () => setState(() => _municipalityId = null),
+                ),
+                for (final entry in _sortedMunicipalities(labels))
+                  _FilterPill(
+                    label: entry.value,
+                    selected: _municipalityId == entry.key,
+                    onTap: () => setState(() => _municipalityId = entry.key),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: Row(
               children: [
-                const Expanded(
-                  child: Text(
-                    'Upcoming Events',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF033300),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _categoryId,
+                    isDense: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      isDense: true,
                     ),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('All categories'),
+                      ),
+                      for (final entry in _sortedCategories(labels))
+                        DropdownMenuItem<String>(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        ),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _categoryId = value),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.calendar_month),
-                  onPressed: () {
-                    // Device calendar integration via add_2_calendar
-                  },
-                  tooltip: 'Save to device calendar',
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Promoted'),
+                  selected: _promotedOnly,
+                  onSelected: (value) =>
+                      setState(() => _promotedOnly = value),
+                  selectedColor: const Color(0xFFFFC800),
+                  checkmarkColor: const Color(0xFF033300),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 4),
           Expanded(
             child: StreamBuilder<List<EventItem>>(
               stream: discovery.promoteTownsAndEvents,
               builder: (context, snap) {
-                final events = snap.data ?? [];
+                final all = snap.data ?? [];
+                final events = _filter(all, labels);
                 if (events.isEmpty) {
-                  return const Center(child: Text('No events found.'));
+                  return const Center(
+                    child: Text(
+                      'No events match your search.',
+                      style: TextStyle(color: Color(0xFF6B6B6B)),
+                    ),
+                  );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(16),
                   itemCount: events.length,
                   itemBuilder: (_, i) {
                     final e = events[i];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 16),
-                      child: EventCard(
-                        title: e.title,
-                        municipality: e.municipalityId,
-                        date: dateFormat.format(e.startDate),
-                        category: e.categoryId ?? 'General',
-                        imageUrl: e.imageUrl ??
-                            'https://via.placeholder.com/600x400',
-                        isPromoted: e.promotedRank > 0,
-                        isFeatured: e.isFeatured,
-                        onTap: () => context.push('/event/${e.id}'),
+                      child: SizedBox(
+                        height: 236,
+                        child: EventCard(
+                          title: e.title,
+                          municipality: labels.municipality(e.municipalityId),
+                          date: dateFormat.format(e.startDate),
+                          category: labels.category(e.categoryId),
+                          categoryKey: labels.category(e.categoryId),
+                          municipalityKey:
+                              labels.municipality(e.municipalityId),
+                          imageUrl: e.imageUrl,
+                          isPromoted: e.promotionWeight > 1.0,
+                          isFeatured: e.isFeatured,
+                          isSaved: saved.isEventSaved(e.id),
+                          onToggleSave: () => _toggleSavedEvent(e),
+                          onTap: () => context.push('/event/${e.id}'),
+                        ),
                       ),
                     );
                   },
@@ -86,17 +179,114 @@ class EventsPage extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () => context.push('/submit/event'),
         icon: const Icon(Icons.add),
         label: const Text('Add Event'),
         backgroundColor: const Color(0xFF033300),
       ),
     );
   }
+
+  List<MapEntry<String, String>> _sortedMunicipalities(LookupTables labels) {
+    final entries = labels.municipalityNames.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    return entries;
+  }
+
+  List<MapEntry<String, String>> _sortedCategories(LookupTables labels) {
+    final entries = labels.categoryNames.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    return entries;
+  }
+
+  List<EventItem> _filter(List<EventItem> all, LookupTables labels) {
+    final q = _query.trim().toLowerCase();
+    final filtered = all.where((event) {
+      if (_municipalityId != null && event.municipalityId != _municipalityId) {
+        return false;
+      }
+      if (_categoryId != null && event.categoryId != _categoryId) {
+        return false;
+      }
+      if (_promotedOnly &&
+          !(event.isFeatured || event.promotionWeight > 1.0)) {
+        return false;
+      }
+      if (q.isNotEmpty) {
+        final haystack = [
+          event.title,
+          event.description ?? '',
+          event.venueName ?? '',
+          labels.municipality(event.municipalityId),
+          labels.category(event.categoryId),
+        ].join(' ').toLowerCase();
+        if (!haystack.contains(q)) return false;
+      }
+      return true;
+    }).toList()
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    return filtered;
+  }
+
+  Future<void> _toggleSavedEvent(EventItem event) async {
+    final isSaved = await ref.read(savedPlacesProvider).toggleEvent(event);
+    final user = ref.read(authServiceProvider).currentUser;
+    if (isSaved && user != null) {
+      try {
+        await ref
+            .read(discoveryServiceProvider)
+            .rsvpEvent(event.id, 'interested', user.id);
+      } catch (_) {
+        // Local bookmark still succeeded.
+      }
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isSaved ? 'Saved to Saved Places & Events' : 'Removed from saved'),
+        backgroundColor: const Color(0xFF033300),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+}
+
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        selectedColor: const Color(0xFF033300),
+        backgroundColor: Colors.white,
+        labelStyle: TextStyle(
+          fontSize: 12,
+          color: selected ? Colors.white : const Color(0xFF6B6B6B),
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        ),
+        side: BorderSide(
+          color: selected ? const Color(0xFF033300) : const Color(0xFFE5E5E5),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
+  }
 }
 
 /// Event detail page with RSVP/participation, bookmarks, "How to Get There"
-/// route guide, and Tourism Coordinator contact/inquiry button.
+/// route guide, Google Maps directions, and Tourism Coordinator inquiry.
 class EventDetailPage extends ConsumerWidget {
   final String eventId;
   const EventDetailPage({super.key, required this.eventId});
@@ -105,52 +295,46 @@ class EventDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final discovery = ref.read(discoveryServiceProvider);
     final dateFormat = DateFormat('MMM d, yyyy');
+    final labels = ref.watch(lookupsProvider).valueOrNull ?? LookupTables.empty;
+    final saved = ref.watch(savedPlacesProvider);
 
     return StreamBuilder<List<EventItem>>(
       stream: discovery.promoteTownsAndEvents,
       builder: (context, snap) {
         final events = snap.data ?? [];
         final matches = events.where((e) => e.id == eventId).toList();
-        if (matches.isEmpty) {
+        final savedMatches =
+            saved.savedEvents.where((e) => e.id == eventId).toList();
+        if (matches.isEmpty && savedMatches.isEmpty) {
           return Scaffold(
             appBar: AppBar(title: const Text('Event')),
             body: const Center(child: Text('Event not found.')),
           );
         }
-        final event = matches.first;
+        final event = matches.isNotEmpty ? matches.first : savedMatches.first;
+        final isSaved = saved.isEventSaved(event.id);
+
         return Scaffold(
           appBar: AppBar(
-            title: Text(event.title),
+            title: Text(event.title, maxLines: 1, overflow: TextOverflow.ellipsis),
             centerTitle: true,
             actions: [
               IconButton(
-                icon: const Icon(Icons.bookmark_border),
-                tooltip: 'Bookmark event',
-                onPressed: () =>
-                    _saveRsvp(context, ref, event, 'interested', 'Bookmarked'),
+                icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border),
+                tooltip: isSaved ? 'Remove bookmark' : 'Bookmark event',
+                onPressed: () => _toggleBookmark(context, ref, event),
               ),
             ],
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              ClipRRect(
+              TourismImage(
+                imageUrl: event.imageUrl,
+                category: labels.category(event.categoryId),
+                municipality: labels.municipality(event.municipalityId),
+                height: 220,
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  event.imageUrl ?? 'https://via.placeholder.com/600x400',
-                  height: 220,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    height: 220,
-                    color: const Color(0xFFF7F6F2),
-                    child: const Icon(
-                      Icons.event,
-                      color: Color(0xFF033300),
-                      size: 48,
-                    ),
-                  ),
-                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -169,7 +353,8 @@ class EventDetailPage extends ConsumerWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      event.venueName ?? event.municipalityId,
+                      event.venueName ??
+                          labels.municipality(event.municipalityId),
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF6B6B6B),
@@ -204,7 +389,6 @@ class EventDetailPage extends ConsumerWidget {
                 const SizedBox(height: 16),
               ],
 
-              // RSVP / participation — requires a signed-in account.
               const SectionHeader(
                 title: 'RSVP',
                 subtitle: 'Going, interested, or save for later',
@@ -238,7 +422,6 @@ class EventDetailPage extends ConsumerWidget {
               ),
               const SizedBox(height: 24),
 
-              // How to Get There
               const SectionHeader(
                 title: 'How to Get There',
                 subtitle: 'Step-by-step directions to this event',
@@ -259,19 +442,16 @@ class EventDetailPage extends ConsumerWidget {
                 height: 56,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.directions),
-                  label: const Text('Open Directions in Maps'),
+                  label: const Text('Get Directions'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF033300),
                     side: const BorderSide(color: Color(0xFF033300)),
                   ),
-                  onPressed: () {
-                    // url_launcher to open Google/Apple Maps
-                  },
+                  onPressed: () => _openDirections(context, event),
                 ),
               ),
               const SizedBox(height: 24),
 
-              // Tourism Coordinator contact & inquiry
               const SectionHeader(
                 title: 'Tourism Coordinator',
                 subtitle:
@@ -304,6 +484,46 @@ class EventDetailPage extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openDirections(BuildContext context, EventItem event) async {
+    final opened = await MapLauncher.openDirections(
+      latitude: event.latitude,
+      longitude: event.longitude,
+      address: event.venueName,
+      label: event.title,
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open Google Maps on this device.')),
+      );
+    }
+  }
+
+  Future<void> _toggleBookmark(
+    BuildContext context,
+    WidgetRef ref,
+    EventItem event,
+  ) async {
+    final isSaved = await ref.read(savedPlacesProvider).toggleEvent(event);
+    final user = ref.read(authServiceProvider).currentUser;
+    if (isSaved && user != null) {
+      try {
+        await ref
+            .read(discoveryServiceProvider)
+            .rsvpEvent(event.id, 'interested', user.id);
+      } catch (_) {
+        // Local bookmark remains valid.
+      }
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isSaved ? 'Saved for later' : 'Removed from saved'),
+        backgroundColor: const Color(0xFF033300),
+        duration: const Duration(seconds: 1),
+      ),
     );
   }
 

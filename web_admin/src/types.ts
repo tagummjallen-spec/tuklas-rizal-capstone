@@ -68,6 +68,7 @@ export interface EventRecord {
   end_date: string;
   latitude: number | null;
   longitude: number | null;
+  image_url: string | null;
   status: EventStatus;
   is_featured: boolean;
   promotion_weight: number;
@@ -83,11 +84,13 @@ export interface PoiRecord {
   name: string;
   description: string | null;
   poi_type: string | null;
+  address: string | null;
   how_to_get_there: string | null;
   operating_hours: string | null;
   entrance_fee: string | null;
   latitude: number | null;
   longitude: number | null;
+  image_url: string | null;
   is_promoted: boolean;
   created_at: string;
 }

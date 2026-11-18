@@ -90,6 +90,7 @@ export type IconKey =
   | 'edit'
   | 'broadcast'
   | 'shield'
+  | 'image'
   | 'menu';
 
 export const NAV_ITEMS: NavItem[] = [

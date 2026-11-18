@@ -4,6 +4,10 @@ import '../../services/discovery_service.dart';
 import '../../services/geofence_service.dart';
 import '../../services/rag_chat_service.dart';
 import '../../services/coordinator_service.dart';
+import '../../services/storage_service.dart';
+import '../../services/saved_places_service.dart';
+import '../../services/lookup_service.dart';
+import '../../models/user_profile.dart';
 import '../../core/constants/app_constants.dart';
 
 /// Central provider declarations.
@@ -44,4 +48,37 @@ final coordinatorServiceProvider = Provider<CoordinatorService>((ref) {
     return SupabaseCoordinatorService();
   }
   return MockCoordinatorService();
+});
+
+/// Gallery uploads to the public `tourism-media` Supabase Storage bucket.
+final storageServiceProvider = Provider<StorageService>((ref) {
+  if (AppConstants.isSupabaseConfigured) {
+    return SupabaseStorageService();
+  }
+  return MockStorageService();
+});
+
+/// Auth state stream used by the app-level onboarding bootstrap.
+final authStateProvider = StreamProvider<UserProfile?>((ref) {
+  return ref.watch(authServiceProvider).authStateChanges;
+});
+
+/// Municipality/category UUID → display name, loaded once per session.
+final lookupServiceProvider = Provider<LookupService>((ref) {
+  if (AppConstants.isSupabaseConfigured) {
+    return SupabaseLookupService();
+  }
+  return MockLookupService();
+});
+
+final lookupsProvider = FutureProvider<LookupTables>((ref) {
+  return ref.read(lookupServiceProvider).load();
+});
+
+/// Saved Trips / Bookmarks — persisted on device, works for guests.
+final savedPlacesProvider =
+    ChangeNotifierProvider<SavedPlacesController>((ref) {
+  final controller = SavedPlacesController();
+  controller.load();
+  return controller;
 });
