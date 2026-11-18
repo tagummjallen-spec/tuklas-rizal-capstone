@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/auth_gate.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/poi_card.dart';
 import '../../../models/poi_logistics.dart';
 
 /// Explore — Destinations, Cultural/Heritage Sites, Unique Rizal Foods &
 /// Local Restaurants with directions ("How to Get There").
+///
+/// Browsing is open to guests; inquiries require a session.
 class ExplorePage extends ConsumerWidget {
   const ExplorePage({super.key});
 
@@ -25,7 +29,7 @@ class ExplorePage extends ConsumerWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              children: [
+              children: const [
                 _Pill(label: 'All Destinations', selected: true),
                 _Pill(label: 'Cultural & Heritage'),
                 _Pill(label: 'Unique Foods'),
@@ -50,10 +54,10 @@ class ExplorePage extends ConsumerWidget {
                       child: PoiCard(
                         name: p.name,
                         municipality: p.municipalityId,
-                        category: p.categoryId ?? 'General',
+                        category: p.poiType ?? 'General',
                         imageUrl: p.imageUrl ??
                             'https://via.placeholder.com/600x400',
-                        onTap: () => Navigator.of(context).pushNamed('/poi/${p.id}'),
+                        onTap: () => context.push('/poi/${p.id}'),
                       ),
                     );
                   },
@@ -100,7 +104,14 @@ class PoiDetailPage extends ConsumerWidget {
       stream: ref.read(discoveryServiceProvider).pois,
       builder: (context, snap) {
         final pois = snap.data ?? [];
-        final poi = pois.firstWhere((p) => p.id == poiId, orElse: () => throw Exception('Not found'));
+        final matches = pois.where((p) => p.id == poiId).toList();
+        if (matches.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Place')),
+            body: const Center(child: Text('Place not found.')),
+          );
+        }
+        final poi = matches.first;
         return Scaffold(
           appBar: AppBar(title: Text(poi.name), centerTitle: true),
           body: ListView(
@@ -118,21 +129,50 @@ class PoiDetailPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(poi.name,
-                  style: const TextStyle(
-                      fontSize: 26, fontWeight: FontWeight.w700,
-                      color: Color(0xFF033300))),
+              Text(
+                poi.name,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF033300),
+                ),
+              ),
               const SizedBox(height: 8),
-              Text(poi.municipalityId,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF6B6B6B))),
+              if (poi.address != null)
+                Text(
+                  poi.address!,
+                  style:
+                      const TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
+                ),
+              if (poi.operatingHours != null || poi.entranceFee != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (poi.operatingHours != null) poi.operatingHours!,
+                    if (poi.entranceFee != null) 'Fee: ${poi.entranceFee}',
+                  ].join(' · '),
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+                ),
+              ],
               const SizedBox(height: 16),
-              Text(poi.description ?? '',
-                  style: const TextStyle(fontSize: 16, color: Color(0xFF1B1B1B))),
+              Text(
+                poi.description ?? '',
+                style:
+                    const TextStyle(fontSize: 16, color: Color(0xFF1B1B1B)),
+              ),
               const SizedBox(height: 24),
               const SectionHeader(
                 title: 'How to Get There',
                 subtitle: 'Step-by-step directions to this attraction',
               ),
+              const SizedBox(height: 12),
+              if (poi.howToGetThere != null && poi.howToGetThere!.isNotEmpty)
+                Text(
+                  poi.howToGetThere!,
+                  style:
+                      const TextStyle(fontSize: 15, color: Color(0xFF1B1B1B)),
+                ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -154,18 +194,19 @@ class PoiDetailPage extends ConsumerWidget {
               const SectionHeader(
                 title: 'Tourism Coordinator',
                 subtitle:
-                    "Contact the municipal ${AppConstants.tourismCoordinatorTitle}",
+                    'Contact the municipal Tourism Coordinator — sign in required',
               ),
               const SizedBox(height: 12),
               ListTile(
                 leading: const Icon(Icons.business, color: Color(0xFF033300)),
-                title: Text(
-                  '${poi.municipalityId} ${AppConstants.tourismCoordinatorTitle}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                title: const Text(
+                  'Send an inquiry',
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
+                subtitle:
+                    const Text('Routed to this municipality’s Tourism Office'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => Navigator.of(context)
-                    .pushNamed('/inquiry/${poi.municipalityId}'),
+                onTap: () => _openInquiry(context, ref, poi.municipalityId),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -174,8 +215,8 @@ class PoiDetailPage extends ConsumerWidget {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.email),
                   label: const Text('Send Inquiry to Tourism Coordinator'),
-                  onPressed: () => Navigator.of(context)
-                      .pushNamed('/inquiry/${poi.municipalityId}'),
+                  onPressed: () =>
+                      _openInquiry(context, ref, poi.municipalityId),
                 ),
               ),
               const SizedBox(height: 32),
@@ -184,6 +225,20 @@ class PoiDetailPage extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _openInquiry(
+    BuildContext context,
+    WidgetRef ref,
+    String municipalityId,
+  ) async {
+    final signedIn = await requireSignIn(
+      context,
+      ref,
+      action: 'message the Tourism Coordinator',
+    );
+    if (!signedIn || !context.mounted) return;
+    context.push('/inquiry/$municipalityId');
   }
 }
 

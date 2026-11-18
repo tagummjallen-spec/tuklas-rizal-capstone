@@ -7,6 +7,9 @@ import '../models/municipality.dart';
 import '../models/poi_logistics.dart';
 
 /// Interface for discovery data — events, POIs, municipalities.
+///
+/// All reads are public: guests (no session) can browse events, POIs and
+/// municipalities without signing in.
 abstract class DiscoveryService {
   Stream<List<EventItem>> get featuredEvents;
   Stream<List<EventItem>> get promoteTownsAndEvents; // Rule-Based AI
@@ -23,13 +26,21 @@ abstract class DiscoveryService {
     required Map<String, int> municipalityVisitCounts,
   });
 
-  /// RSVP / participation tracking.
+  /// RSVP / participation tracking. [rsvpStatus] is one of the values the live
+  /// `event_participation.status` column accepts: 'going', 'interested',
+  /// 'attended'.
   Future<void> rsvpEvent(String eventId, String rsvpStatus, String userId);
   Stream<List<Map<String, dynamic>>> getMyParticipations(String userId);
 }
 
 /// ---------------------------------------------------------------------------
-/// Production implementation backed by Supabase (wired to 001_initial_schema.sql).
+/// Production implementation backed by Supabase, strictly aligned with the live
+/// schema:
+///   events:            status ('approved'), is_featured, start_date, ...
+///   pois_logistics:    poi_type, how_to_get_there, is_promoted, ... (NO is_active)
+///   municipalities:    latitude/longitude, tourism_office_name, ... (NO is_active)
+///   event_participation: id, user_id, event_id, status, created_at
+///                        (NO rsvp_status / updated_at)
 /// Falls back to sample seed records when live tables are empty.
 /// ---------------------------------------------------------------------------
 class SupabaseDiscoveryService implements DiscoveryService {
@@ -39,21 +50,20 @@ class SupabaseDiscoveryService implements DiscoveryService {
   static final List<EventItem> _mockEvents = [
     EventItem(
       id: 'evt-1',
-      title: "Higantes Festival",
+      title: 'Higantes Festival',
       description: "Angono's iconic giant-puppet cultural festival.",
       categoryId: 'festival',
       municipalityId: 'angono',
-      organizerId: 'org-angono',
       status: 'approved',
       startDate: DateTime(2026, 11, 22),
       endDate: DateTime(2026, 11, 23),
-      location: 'Angono Town Proper',
-      imageUrl:
-          'https://via.placeholder.com/600x400?text=Higantes+Festival',
-      contactPerson: 'Angono Tourism Coordinator',
-      contactEmail: 'tourism@angono.gov.ph',
+      venueName: 'Angono Town Proper',
+      howToGetThere:
+          'Ride a jeepney or UV Express bound for Angono from Shaw Blvd or Cubao; '
+              'alight at Angono Town Plaza.',
+      imageUrl: 'https://via.placeholder.com/600x400?text=Higantes+Festival',
       isFeatured: true,
-      promotedRank: 0,
+      promotionWeight: 1.3,
       createdAt: DateTime(2026, 10, 1),
       updatedAt: DateTime(2026, 10, 1),
     ),
@@ -61,18 +71,17 @@ class SupabaseDiscoveryService implements DiscoveryService {
       id: 'evt-2',
       title: 'Petroglyphs Heritage Walk',
       description: 'Guided tour of the Binangonan Petroglyphs.',
-      categoryId: 'cultural',
+      categoryId: 'cultural-arts',
       municipalityId: 'binangonan',
-      organizerId: 'org-binangonan',
       status: 'approved',
       startDate: DateTime(2026, 11, 28),
       endDate: DateTime(2026, 11, 28),
-      location: 'Binangonan Petroglyphs Site',
-      imageUrl:
-          'https://via.placeholder.com/600x400?text=Petroglyphs',
-      contactPerson: 'Binangonan Tourism Coordinator',
-      contactEmail: 'tourism@binangonan.gov.ph',
-      promotedRank: 0,
+      venueName: 'Binangonan Petroglyphs Site',
+      howToGetThere:
+          'Take a Binangonan-bound jeepney via Manila East Road and alight at '
+              'Binangonan Municipal Hall.',
+      imageUrl: 'https://via.placeholder.com/600x400?text=Petroglyphs',
+      promotionWeight: 1.1,
       createdAt: DateTime(2026, 10, 5),
       updatedAt: DateTime(2026, 10, 5),
     ),
@@ -80,19 +89,18 @@ class SupabaseDiscoveryService implements DiscoveryService {
       id: 'evt-3',
       title: 'Taytay Tiangge Fair',
       description: 'Weekend tiangge featuring local garments and delicacies.',
-      categoryId: 'food_heritage',
+      categoryId: 'food-heritage',
       municipalityId: 'taytay',
-      organizerId: 'org-taytay',
       status: 'approved',
       startDate: DateTime(2026, 12, 6),
       endDate: DateTime(2026, 12, 7),
-      location: 'Taytay Municipal Grounds',
-      imageUrl:
-          'https://via.placeholder.com/600x400?text=Taytay+Tiangge',
-      contactPerson: 'Taytay Tourism Coordinator',
-      contactEmail: 'tourism@taytay.gov.ph',
+      venueName: 'Taytay Municipal Grounds',
+      howToGetThere:
+          'Take a Taytay/Angono jeepney along Ortigas Avenue Extension and alight '
+              'at Taytay Tiangge.',
+      imageUrl: 'https://via.placeholder.com/600x400?text=Taytay+Tiangge',
       isFeatured: true,
-      promotedRank: 0,
+      promotionWeight: 1.2,
       createdAt: DateTime(2026, 10, 10),
       updatedAt: DateTime(2026, 10, 10),
     ),
@@ -103,21 +111,25 @@ class SupabaseDiscoveryService implements DiscoveryService {
       id: 'poi-1',
       name: 'Angono Petroglyphs',
       description: 'Prehistoric rock engravings in Angono.',
-      categoryId: 'cultural',
+      categoryId: 'cultural-arts',
       municipalityId: 'angono',
+      poiType: 'heritage_site',
       address: 'Angono, Rizal',
-      contactPerson: 'Angono Tourism Coordinator',
-      imageUrl:
-          'https://via.placeholder.com/600x400?text=Angono+Petroglyphs',
+      howToGetThere: 'Charter a tricycle from Angono Poblacion.',
+      operatingHours: '8:00 AM - 4:00 PM (Tue-Sun)',
+      entranceFee: 'Free',
+      imageUrl: 'https://via.placeholder.com/600x400?text=Angono+Petroglyphs',
+      isPromoted: true,
     ),
     PoiLogistics(
       id: 'poi-2',
       name: 'Binangonan Petroglyphs',
       description: 'Ancient petroglyphs on the lakeshore of Binangonan.',
-      categoryId: 'cultural',
+      categoryId: 'cultural-arts',
       municipalityId: 'binangonan',
+      poiType: 'heritage_site',
       address: 'Binangonan, Rizal',
-      contactPerson: 'Binangonan Tourism Coordinator',
+      howToGetThere: 'Short tricycle ride from Binangonan Poblacion.',
       imageUrl:
           'https://via.placeholder.com/600x400?text=Binangonan+Petroglyphs',
     ),
@@ -125,23 +137,25 @@ class SupabaseDiscoveryService implements DiscoveryService {
       id: 'poi-3',
       name: 'Santa Ana de Sapa Parish',
       description: 'Historic church in Taytay.',
-      categoryId: 'cultural',
+      categoryId: 'cultural-arts',
       municipalityId: 'taytay',
+      poiType: 'heritage_site',
       address: 'Taytay, Rizal',
-      contactPerson: 'Taytay Tourism Coordinator',
-      imageUrl:
-          'https://via.placeholder.com/600x400?text=Santa+Ana+Church',
+      howToGetThere: 'Alight at Taytay Municipal Hall and walk to the plaza.',
+      imageUrl: 'https://via.placeholder.com/600x400?text=Santa+Ana+Church',
     ),
     PoiLogistics(
       id: 'poi-4',
       name: 'Balaw-Balaw Restaurant',
       description: 'Famous Angono delicacy restaurant.',
-      categoryId: 'food_heritage',
+      categoryId: 'food-heritage',
       municipalityId: 'angono',
+      poiType: 'unique_food',
       address: 'Angono, Rizal',
-      contactPerson: 'Angono Tourism Coordinator',
-      imageUrl:
-          'https://via.placeholder.com/600x400?text=Balaw-Balaw',
+      operatingHours: '10:00 AM - 9:00 PM Daily',
+      entranceFee: 'Free Gallery Entry',
+      imageUrl: 'https://via.placeholder.com/600x400?text=Balaw-Balaw',
+      isPromoted: true,
     ),
   ];
 
@@ -155,9 +169,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
           .eq('is_featured', true)
           .eq('status', 'approved')
           .map((rows) {
-        final events = rows
-            .map((r) => EventItem.fromJson(r))
-            .toList();
+        final events = rows.map((r) => EventItem.fromJson(r)).toList();
         return events.isNotEmpty
             ? events
             : _mockEvents.where((e) => e.isFeatured).toList();
@@ -170,9 +182,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
           .stream(primaryKey: ['id'])
           .eq('status', 'approved')
           .map((rows) {
-        final events = rows
-            .map((r) => EventItem.fromJson(r))
-            .toList();
+        final events = rows.map((r) => EventItem.fromJson(r)).toList();
         return events.isNotEmpty
             ? events
             : _mockEvents; // scoring applied by consumers
@@ -180,39 +190,27 @@ class SupabaseDiscoveryService implements DiscoveryService {
 
   @override
   Stream<List<PoiLogistics>> get pois =>
-      _client
-          .from('pois_logistics')
-          .stream(primaryKey: ['id'])
-          .eq('is_active', true)
-          .map((rows) {
-        final pois = rows
-            .map((r) => PoiLogistics.fromJson(r))
-            .toList();
+      _client.from('pois_logistics').stream(primaryKey: ['id']).map((rows) {
+        final pois = rows.map((r) => PoiLogistics.fromJson(r)).toList();
         return pois.isNotEmpty ? pois : _mockPois;
       });
 
   @override
   Stream<List<Municipality>> get municipalities =>
-      _client
-          .from('municipalities')
-          .stream(primaryKey: ['id'])
-          .eq('is_active', true)
-          .map((rows) {
-        final munis = rows
-            .map((r) => Municipality.fromJson(r))
-            .toList();
+      _client.from('municipalities').stream(primaryKey: ['id']).map((rows) {
+        final munis = rows.map((r) => Municipality.fromJson(r)).toList();
         return munis.isNotEmpty
             ? munis
             : RizalMunicipalities.all
                 .map((m) => Municipality(
                       id: m.id,
                       name: m.name,
+                      slug: m.id.replaceAll('_', '-'),
                       description: m.description,
-                      geofenceLat: m.geofenceLat,
-                      geofenceLng: m.geofenceLng,
+                      latitude: m.geofenceLat,
+                      longitude: m.geofenceLng,
                       geofenceRadiusMeters: m.geofenceRadiusMeters,
-                      tourismOfficeContact: m.tourismOfficeContact,
-                      imageUrl: m.imageAsset,
+                      tourismOfficeName: m.tourismOfficeContact,
                     ))
                 .toList();
       });
@@ -229,11 +227,11 @@ class SupabaseDiscoveryService implements DiscoveryService {
         .eq('municipality_id', municipalityId)
         .eq('status', 'approved')
         .order('start_date', ascending: true);
-    final events = response
-        .map((r) => EventItem.fromJson(r))
-        .toList();
+    final events = response.map((r) => EventItem.fromJson(r)).toList();
     if (events.isNotEmpty) return events;
-    return _mockEvents.where((e) => e.municipalityId == municipalityId).toList();
+    return _mockEvents
+        .where((e) => e.municipalityId == municipalityId)
+        .toList();
   }
 
   @override
@@ -243,11 +241,8 @@ class SupabaseDiscoveryService implements DiscoveryService {
     final response = await _client
         .from('pois_logistics')
         .select()
-        .eq('municipality_id', municipalityId)
-        .eq('is_active', true);
-    final pois = response
-        .map((r) => PoiLogistics.fromJson(r))
-        .toList();
+        .eq('municipality_id', municipalityId);
+    final pois = response.map((r) => PoiLogistics.fromJson(r)).toList();
     if (pois.isNotEmpty) return pois;
     return _mockPois.where((p) => p.municipalityId == municipalityId).toList();
   }
@@ -260,13 +255,13 @@ class SupabaseDiscoveryService implements DiscoveryService {
         .select()
         .eq('status', 'approved')
         .ilike('title', '%$q%');
-    final events = response
-        .map((r) => EventItem.fromJson(r))
-        .toList();
+    final events = response.map((r) => EventItem.fromJson(r)).toList();
     if (events.isNotEmpty) return events;
-    return _mockEvents.where((e) =>
-        e.title.toLowerCase().contains(q) ||
-        (e.description ?? '').toLowerCase().contains(q)).toList();
+    return _mockEvents
+        .where((e) =>
+            e.title.toLowerCase().contains(q) ||
+            (e.description ?? '').toLowerCase().contains(q))
+        .toList();
   }
 
   // ---- Rule-Based AI "Promote Towns and Events" scoring ----
@@ -299,7 +294,12 @@ class SupabaseDiscoveryService implements DiscoveryService {
       // Featured boost
       if (event.isFeatured) score += 20;
 
-      return event.copyWith(promotedRank: score);
+      // LGU promotion weight (events.promotion_weight)
+      if (event.promotionWeight > 1.0) {
+        score += ((event.promotionWeight - 1.0) * 40).round();
+      }
+
+      return event.withPromotedRank(score);
     }).toList()
       ..sort((a, b) => b.promotedRank.compareTo(a.promotedRank));
   }
@@ -312,12 +312,15 @@ class SupabaseDiscoveryService implements DiscoveryService {
     String rsvpStatus,
     String userId,
   ) async {
-    await _client.from('event_participation').upsert({
-      'event_id': eventId,
-      'user_id': userId,
-      'rsvp_status': rsvpStatus,
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+    // Live columns: id, user_id, event_id, status, created_at.
+    await _client.from('event_participation').upsert(
+      {
+        'event_id': eventId,
+        'user_id': userId,
+        'status': rsvpStatus,
+      },
+      onConflict: 'user_id,event_id',
+    );
   }
 
   @override
@@ -335,32 +338,57 @@ class SupabaseDiscoveryService implements DiscoveryService {
 /// Mock implementation — automatic fallback when Supabase is NOT configured.
 /// ---------------------------------------------------------------------------
 class MockDiscoveryService implements DiscoveryService {
-  final SupabaseDiscoveryService _inner = SupabaseDiscoveryService();
-
   @override
-  Stream<List<EventItem>> get featuredEvents => _inner.featuredEvents;
+  Stream<List<EventItem>> get featuredEvents =>
+      Stream.value(SupabaseDiscoveryService._mockEvents
+          .where((e) => e.isFeatured)
+          .toList());
 
   @override
   Stream<List<EventItem>> get promoteTownsAndEvents =>
-      _inner.promoteTownsAndEvents;
+      Stream.value(SupabaseDiscoveryService._mockEvents);
 
   @override
-  Stream<List<PoiLogistics>> get pois => _inner.pois;
+  Stream<List<PoiLogistics>> get pois =>
+      Stream.value(SupabaseDiscoveryService._mockPois);
 
   @override
-  Stream<List<Municipality>> get municipalities => _inner.municipalities;
+  Stream<List<Municipality>> get municipalities => Stream.value(
+        RizalMunicipalities.all
+            .map((m) => Municipality(
+                  id: m.id,
+                  name: m.name,
+                  slug: m.id.replaceAll('_', '-'),
+                  description: m.description,
+                  latitude: m.geofenceLat,
+                  longitude: m.geofenceLng,
+                  geofenceRadiusMeters: m.geofenceRadiusMeters,
+                  tourismOfficeName: m.tourismOfficeContact,
+                ))
+            .toList(),
+      );
 
   @override
-  Future<List<EventItem>> getEventsByMunicipality(String municipalityId) =>
-      _inner.getEventsByMunicipality(municipalityId);
+  Future<List<EventItem>> getEventsByMunicipality(String municipalityId) async =>
+      SupabaseDiscoveryService._mockEvents
+          .where((e) => e.municipalityId == municipalityId)
+          .toList();
 
   @override
-  Future<List<PoiLogistics>> getPoisByMunicipality(String municipalityId) =>
-      _inner.getPoisByMunicipality(municipalityId);
+  Future<List<PoiLogistics>> getPoisByMunicipality(String municipalityId) async =>
+      SupabaseDiscoveryService._mockPois
+          .where((p) => p.municipalityId == municipalityId)
+          .toList();
 
   @override
-  Future<List<EventItem>> searchEvents(String query) =>
-      _inner.searchEvents(query);
+  Future<List<EventItem>> searchEvents(String query) async {
+    final q = query.toLowerCase();
+    return SupabaseDiscoveryService._mockEvents
+        .where((e) =>
+            e.title.toLowerCase().contains(q) ||
+            (e.description ?? '').toLowerCase().contains(q))
+        .toList();
+  }
 
   @override
   List<EventItem> scorePromoteTownsAndEvents({
@@ -368,11 +396,25 @@ class MockDiscoveryService implements DiscoveryService {
     required List<String> userInterestCategoryIds,
     required Map<String, int> municipalityVisitCounts,
   }) {
-    return _inner.scorePromoteTownsAndEvents(
-      events: events,
-      userInterestCategoryIds: userInterestCategoryIds,
-      municipalityVisitCounts: municipalityVisitCounts,
-    );
+    return events.map((event) {
+      int score = 0;
+      if (event.categoryId != null &&
+          userInterestCategoryIds.contains(event.categoryId)) {
+        score += 40;
+      }
+      final visits = municipalityVisitCounts[event.municipalityId] ?? 0;
+      if (visits == 0) {
+        score += 30;
+      } else if (visits < 3) {
+        score += 15;
+      }
+      if (event.isFeatured) score += 20;
+      if (event.promotionWeight > 1.0) {
+        score += ((event.promotionWeight - 1.0) * 40).round();
+      }
+      return event.withPromotedRank(score);
+    }).toList()
+      ..sort((a, b) => b.promotedRank.compareTo(a.promotedRank));
   }
 
   @override
@@ -387,35 +429,4 @@ class MockDiscoveryService implements DiscoveryService {
   @override
   Stream<List<Map<String, dynamic>>> getMyParticipations(String userId) =>
       Stream.value([]);
-}
-
-/// Extension to allow copyWith on EventItem for scoring.
-extension EventItemCopy on EventItem {
-  EventItem copyWith({int? promotedRank}) {
-    return EventItem(
-      id: id,
-      title: title,
-      description: description,
-      shortSummary: shortSummary,
-      categoryId: categoryId,
-      municipalityId: municipalityId,
-      barangayId: barangayId,
-      organizerId: organizerId,
-      status: status,
-      startDate: startDate,
-      endDate: endDate,
-      location: location,
-      address: address,
-      lat: lat,
-      lng: lng,
-      imageUrl: imageUrl,
-      contactPerson: contactPerson,
-      contactEmail: contactEmail,
-      contactPhone: contactPhone,
-      isFeatured: isFeatured,
-      promotedRank: promotedRank ?? this.promotedRank,
-      createdAt: createdAt,
-      updatedAt: updatedAt,
-    );
-  }
 }

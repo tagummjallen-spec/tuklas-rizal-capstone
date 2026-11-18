@@ -6,9 +6,15 @@ import '../core/constants/municipalities.dart';
 
 /// Interface for the Municipal Tourism Coordinator directory & inquiries.
 abstract class CoordinatorService {
+  /// Public directory — readable by guests.
   Stream<List<Municipality>> get coordinatorDirectory;
+
+  /// Requires a signed-in user (RLS: user_id = auth.uid()).
   Future<void> submitInquiry(CoordinatorInquiry inquiry);
-  Stream<List<CoordinatorInquiry>> get myInquiries;
+
+  /// Requires a signed-in user (RLS scopes to their own rows).
+  Stream<List<CoordinatorInquiry>> getMyInquiries(String userId);
+
   /// RSVP / bookmark an event (writes to public.event_participation).
   Future<void> rsvpEvent(String eventId, String rsvpStatus, String userId);
   Stream<List<Map<String, dynamic>>> getMyParticipations(String userId);
@@ -16,49 +22,41 @@ abstract class CoordinatorService {
 
 /// ---------------------------------------------------------------------------
 /// Production Supabase-backed implementation.
-/// Directory uses public.municipalities (+ public.users with role_tier >= 2
-/// for Tourism Coordinators).
+///
+/// Directory: `public.municipalities`
+///   (id, name, slug, description, latitude, longitude,
+///    geofence_radius_meters, tourism_office_name,
+///    coordinator_contact_email, coordinator_contact_phone,
+///    tourism_office_address, visitor_priority_boost)
+/// Inquiries: `public.coordinator_inquiries`
+///   (municipality_id, user_id, subject, message, status) — id/created_at/
+///   updated_at are DB-managed, and there is no responded_at column.
 /// ---------------------------------------------------------------------------
 class SupabaseCoordinatorService implements CoordinatorService {
   final SupabaseClient _client = Supabase.instance.client;
 
   @override
   Stream<List<Municipality>> get coordinatorDirectory =>
-      _client
-          .from('municipalities')
-          .stream(primaryKey: ['id'])
-          .eq('is_active', true)
-          .map((rows) {
-        return rows
-            .map((r) => Municipality.fromJson(r))
-            .toList();
-      });
+      _client.from('municipalities').stream(primaryKey: ['id']).order('name').map(
+            (rows) => rows.map((r) => Municipality.fromJson(r)).toList(),
+          );
 
   @override
   Future<void> submitInquiry(CoordinatorInquiry inquiry) async {
-    await _client.from('coordinator_inquiries').upsert({
-      'id': inquiry.id,
-      'municipality_id': inquiry.municipalityId,
-      'user_id': inquiry.userId,
-      'subject': inquiry.subject,
-      'message': inquiry.message,
-      'status': inquiry.status,
-      'created_at': inquiry.createdAt.toIso8601String(),
-      'updated_at': inquiry.updatedAt.toIso8601String(),
-    });
+    await _client
+        .from('coordinator_inquiries')
+        .insert(inquiry.toInsertJson());
   }
 
   @override
-  Stream<List<CoordinatorInquiry>> get myInquiries =>
+  Stream<List<CoordinatorInquiry>> getMyInquiries(String userId) =>
       _client
           .from('coordinator_inquiries')
           .stream(primaryKey: ['id'])
+          .eq('user_id', userId)
           .order('created_at', ascending: false)
-          .map((rows) {
-        return rows
-            .map((r) => CoordinatorInquiry.fromJson(r))
-            .toList();
-      });
+          .map((rows) =>
+              rows.map((r) => CoordinatorInquiry.fromJson(r)).toList());
 
   @override
   Future<void> rsvpEvent(
@@ -66,12 +64,15 @@ class SupabaseCoordinatorService implements CoordinatorService {
     String rsvpStatus,
     String userId,
   ) async {
-    await _client.from('event_participation').upsert({
-      'event_id': eventId,
-      'user_id': userId,
-      'rsvp_status': rsvpStatus,
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+    // Live columns: id, user_id, event_id, status, created_at.
+    await _client.from('event_participation').upsert(
+      {
+        'event_id': eventId,
+        'user_id': userId,
+        'status': rsvpStatus,
+      },
+      onConflict: 'user_id,event_id',
+    );
   }
 
   @override
@@ -95,14 +96,13 @@ class MockCoordinatorService implements CoordinatorService {
           .map((m) => Municipality(
                 id: m.id,
                 name: m.name,
+                slug: m.id.replaceAll('_', '-'),
                 description: m.description,
-                geofenceLat: m.geofenceLat,
-                geofenceLng: m.geofenceLng,
+                latitude: m.geofenceLat,
+                longitude: m.geofenceLng,
                 geofenceRadiusMeters: m.geofenceRadiusMeters,
-                tourismOfficeContact: m.tourismOfficeContact,
-                tourismOfficeEmail: m.tourismOfficeEmail,
-                website: m.website,
-                imageUrl: m.imageAsset,
+                tourismOfficeName: m.tourismOfficeContact,
+                coordinatorContactEmail: m.tourismOfficeEmail,
               ))
           .toList());
 
@@ -117,7 +117,7 @@ class MockCoordinatorService implements CoordinatorService {
   }
 
   @override
-  Stream<List<CoordinatorInquiry>> get myInquiries =>
+  Stream<List<CoordinatorInquiry>> getMyInquiries(String userId) =>
       _controller.stream;
 
   @override

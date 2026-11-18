@@ -118,7 +118,7 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
                         Text(entry.municipality.description ?? ''),
                         const SizedBox(height: 8),
                         Text(
-                          'Contact: ${entry.municipality.tourismOfficeContact ?? 'TBD'}',
+                          'Contact: ${entry.municipality.tourismOfficeName ?? 'TBD'}',
                           style: const TextStyle(
                             fontSize: 13,
                             color: Color(0xFF6B6B6B),

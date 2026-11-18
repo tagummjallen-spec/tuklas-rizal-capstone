@@ -30,8 +30,14 @@ final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
 final geofenceServiceProvider = Provider<GeofenceService>((ref) =>
     MockGeofenceService());
 
-final ragChatServiceProvider = Provider<RagChatService>((ref) =>
-    MockRagChatService());
+final ragChatServiceProvider = Provider<RagChatService>((ref) {
+  if (AppConstants.isSupabaseConfigured) {
+    // Live retrieval from municipalities / approved events / pois_logistics.
+    // Flip `useRemoteLlm` to true once the Llama endpoint is wired up.
+    return SupabaseRagChatService(useRemoteLlm: false);
+  }
+  return MockRagChatService();
+});
 
 final coordinatorServiceProvider = Provider<CoordinatorService>((ref) {
   if (AppConstants.isSupabaseConfigured) {

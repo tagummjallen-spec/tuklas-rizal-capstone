@@ -77,12 +77,12 @@ class GeolocatorGeofenceService implements GeofenceService {
         return Municipality(
           id: m.id,
           name: m.name,
+          slug: m.id.replaceAll('_', '-'),
           description: m.description,
-          geofenceLat: m.geofenceLat,
-          geofenceLng: m.geofenceLng,
+          latitude: m.geofenceLat,
+          longitude: m.geofenceLng,
           geofenceRadiusMeters: m.geofenceRadiusMeters,
-          tourismOfficeContact: m.tourismOfficeContact,
-          imageUrl: m.imageAsset,
+          tourismOfficeName: m.tourismOfficeContact,
         );
       }
     }
@@ -110,12 +110,12 @@ class GeolocatorGeofenceService implements GeofenceService {
       municipality: Municipality(
         id: m.id,
         name: m.name,
+        slug: m.id.replaceAll('_', '-'),
         description: m.description,
-        geofenceLat: m.geofenceLat,
-        geofenceLng: m.geofenceLng,
+        latitude: m.geofenceLat,
+        longitude: m.geofenceLng,
         geofenceRadiusMeters: m.geofenceRadiusMeters,
-        tourismOfficeContact: m.tourismOfficeContact,
-        imageUrl: m.imageAsset,
+        tourismOfficeName: m.tourismOfficeContact,
       ),
       enteredAt: DateTime.now(),
     );
@@ -201,12 +201,12 @@ class MockGeofenceService implements GeofenceService {
       municipality: Municipality(
         id: m.id,
         name: m.name,
+        slug: m.id.replaceAll('_', '-'),
         description: m.description,
-        geofenceLat: m.geofenceLat,
-        geofenceLng: m.geofenceLng,
+        latitude: m.geofenceLat,
+        longitude: m.geofenceLng,
         geofenceRadiusMeters: m.geofenceRadiusMeters,
-        tourismOfficeContact: m.tourismOfficeContact,
-        imageUrl: m.imageAsset,
+        tourismOfficeName: m.tourismOfficeContact,
       ),
       enteredAt: DateTime.now(),
     ));

@@ -53,10 +53,10 @@ class AppConstants {
   /// Returns true only when Supabase credentials have been replaced with real values.
   /// When false, the app launches in mock/demo mode without initializing Supabase.
   static bool get isSupabaseConfigured {
-    return supabaseUrl != 'https://dhqzhlhyblcziouyoltp.supabase.co' &&
-        supabaseAnonKey != 'sb_publishable_kEqnKvO1fUU3xMmvZVCylg_el4jTWnr  ' &&
-        supabaseUrl.isNotEmpty &&
-        supabaseAnonKey.isNotEmpty;
+    return supabaseUrl.startsWith('https://') &&
+        !supabaseUrl.contains('your-project') &&
+        supabaseAnonKey.isNotEmpty &&
+        !supabaseAnonKey.contains('your-anon-key');
   }
 
   static const int defaultPageSize = 20;

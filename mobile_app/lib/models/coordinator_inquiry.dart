@@ -1,4 +1,10 @@
-/// Mirrors `supabase/migrations/001_initial_schema.sql` `coordinator_inquiries` table.
+/// Mirrors the live `public.coordinator_inquiries` table exactly.
+///
+/// Columns: `id`, `municipality_id`, `user_id`, `subject`, `message`,
+/// `status`, `created_at`, `updated_at`.
+///
+/// The live table has NO `responded_at` column — writing it fails with PGRST204.
+/// `id` is a DB-generated UUID, so it is never sent by the app.
 class CoordinatorInquiry {
   final String id;
   final String municipalityId;
@@ -6,7 +12,6 @@ class CoordinatorInquiry {
   final String subject;
   final String message;
   final String status; // 'open' | 'in_progress' | 'resolved' | 'closed'
-  final DateTime? respondedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,7 +22,6 @@ class CoordinatorInquiry {
     required this.subject,
     required this.message,
     this.status = 'open',
-    this.respondedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -27,15 +31,26 @@ class CoordinatorInquiry {
       id: json['id'] as String,
       municipalityId: json['municipality_id'] as String,
       userId: json['user_id'] as String,
-      subject: json['subject'] as String,
-      message: json['message'] as String,
+      subject: json['subject'] as String? ?? '',
+      message: json['message'] as String? ?? '',
       status: json['status'] as String? ?? 'open',
-      respondedAt: json['responded_at'] != null
-          ? DateTime.parse(json['responded_at'] as String)
-          : null,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? '') ??
+          DateTime.now(),
     );
+  }
+
+  /// Insert payload — only columns that exist in `public.coordinator_inquiries`,
+  /// and never the DB-generated `id`.
+  Map<String, dynamic> toInsertJson() {
+    return {
+      'municipality_id': municipalityId,
+      'user_id': userId,
+      'subject': subject,
+      'message': message,
+      'status': status,
+    };
   }
 
   Map<String, dynamic> toJson() {
@@ -46,7 +61,6 @@ class CoordinatorInquiry {
       'subject': subject,
       'message': message,
       'status': status,
-      'responded_at': respondedAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };

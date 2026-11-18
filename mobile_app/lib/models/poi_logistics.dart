@@ -1,4 +1,9 @@
-/// Mirrors `supabase/migrations/001_initial_schema.sql` `pois_logistics` table.
+/// Mirrors the live `public.pois_logistics` table exactly.
+///
+/// Columns: `id`, `municipality_id`, `barangay_id`, `category_id`, `name`,
+/// `poi_type`, `description`, `address`, `how_to_get_there`,
+/// `operating_hours`, `entrance_fee`, `latitude`, `longitude`, `image_url`,
+/// `is_promoted` (plus server-managed `created_at`).
 class PoiLogistics {
   final String id;
   final String name;
@@ -6,13 +11,16 @@ class PoiLogistics {
   final String? categoryId;
   final String municipalityId;
   final String? barangayId;
+  final String? poiType; // heritage_site | unique_food | destination
   final String? address;
-  final double? lat;
-  final double? lng;
-  final String? contactPerson; // Tourism Coordinator / establishment contact
-  final String? contactPhone;
+  final String? howToGetThere;
+  final String? operatingHours;
+  final String? entranceFee;
+  final double? latitude;
+  final double? longitude;
   final String? imageUrl;
-  final bool isActive;
+  final bool isPromoted;
+  final DateTime? createdAt;
 
   PoiLogistics({
     required this.id,
@@ -21,48 +29,69 @@ class PoiLogistics {
     this.categoryId,
     required this.municipalityId,
     this.barangayId,
+    this.poiType,
     this.address,
-    this.lat,
-    this.lng,
-    this.contactPerson,
-    this.contactPhone,
+    this.howToGetThere,
+    this.operatingHours,
+    this.entranceFee,
+    this.latitude,
+    this.longitude,
     this.imageUrl,
-    this.isActive = true,
+    this.isPromoted = false,
+    this.createdAt,
   });
+
+  /// Whether this POI is a food/delicacy destination.
+  bool get isFood {
+    final type = (poiType ?? '').toLowerCase();
+    return type.contains('food') ||
+        (categoryId ?? '').toLowerCase().contains('food') ||
+        (name.toLowerCase().contains('restaurant') ||
+            name.toLowerCase().contains('food') ||
+            name.toLowerCase().contains('stall'));
+  }
 
   factory PoiLogistics.fromJson(Map<String, dynamic> json) {
     return PoiLogistics(
       id: json['id'] as String,
-      name: json['name'] as String,
+      name: json['name'] as String? ?? 'Unnamed place',
       description: json['description'] as String?,
       categoryId: json['category_id'] as String?,
       municipalityId: json['municipality_id'] as String,
       barangayId: json['barangay_id'] as String?,
+      poiType: json['poi_type'] as String?,
       address: json['address'] as String?,
-      lat: (json['lat'] as num?)?.toDouble(),
-      lng: (json['lng'] as num?)?.toDouble(),
-      contactPerson: json['contact_person'] as String?,
-      contactPhone: json['contact_phone'] as String?,
+      howToGetThere: json['how_to_get_there'] as String?,
+      operatingHours: json['operating_hours'] as String?,
+      entranceFee: json['entrance_fee'] as String?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       imageUrl: json['image_url'] as String?,
-      isActive: json['is_active'] as bool? ?? true,
+      isPromoted: json['is_promoted'] as bool? ?? false,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'] as String)
+          : null,
     );
   }
 
+  /// Only the columns that exist in `public.pois_logistics`.
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'name': name,
-      'description': description,
-      'category_id': categoryId,
       'municipality_id': municipalityId,
       'barangay_id': barangayId,
+      'category_id': categoryId,
+      'name': name,
+      'poi_type': poiType,
+      'description': description,
       'address': address,
-      'lat': lat,
-      'lng': lng,
-      'contact_person': contactPerson,
-      'contact_phone': contactPhone,
+      'how_to_get_there': howToGetThere,
+      'operating_hours': operatingHours,
+      'entrance_fee': entranceFee,
+      'latitude': latitude,
+      'longitude': longitude,
       'image_url': imageUrl,
-      'is_active': isActive,
+      'is_promoted': isPromoted,
     };
   }
 
@@ -70,62 +99,8 @@ class PoiLogistics {
   String toString() => 'PoiLogistics(id: $id, name: $name)';
 }
 
-/// Mirrors `supabase/migrations/001_initial_schema.sql` `coordinator_inquiries` table.
-class CoordinatorInquiry {
-  final String id;
-  final String municipalityId;
-  final String userId;
-  final String subject;
-  final String message;
-  final String status; // 'open' | 'in_progress' | 'resolved' | 'closed'
-  final DateTime? respondedAt;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  CoordinatorInquiry({
-    required this.id,
-    required this.municipalityId,
-    required this.userId,
-    required this.subject,
-    required this.message,
-    this.status = 'open',
-    this.respondedAt,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  factory CoordinatorInquiry.fromJson(Map<String, dynamic> json) {
-    return CoordinatorInquiry(
-      id: json['id'] as String,
-      municipalityId: json['municipality_id'] as String,
-      userId: json['user_id'] as String,
-      subject: json['subject'] as String,
-      message: json['message'] as String,
-      status: json['status'] as String? ?? 'open',
-      respondedAt: json['responded_at'] != null
-          ? DateTime.parse(json['responded_at'] as String)
-          : null,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'municipality_id': municipalityId,
-      'user_id': userId,
-      'subject': subject,
-      'message': message,
-      'status': status,
-      'responded_at': respondedAt?.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-    };
-  }
-}
-
-/// Mirrors `supabase/migrations/001_initial_schema.sql` `event_embeddings` table.
+/// Mirrors the live `public.event_embeddings` table
+/// (`id`, `event_id`, `embedding`, `model`, `created_at`).
 class EventEmbedding {
   final String id;
   final String eventId;

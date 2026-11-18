@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/auth_gate.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../models/event_item.dart';
 
 /// Events & Calendar — event listing, RSVP/participation, bookmarks.
+///
+/// Browsing is open to guests; RSVP and bookmarking require a session.
 class EventsPage extends ConsumerWidget {
   const EventsPage({super.key});
 
@@ -71,8 +75,7 @@ class EventsPage extends ConsumerWidget {
                             'https://via.placeholder.com/600x400',
                         isPromoted: e.promotedRank > 0,
                         isFeatured: e.isFeatured,
-                        onTap: () =>
-                            Navigator.of(context).pushNamed('/event/${e.id}'),
+                        onTap: () => context.push('/event/${e.id}'),
                       ),
                     );
                   },
@@ -92,8 +95,8 @@ class EventsPage extends ConsumerWidget {
   }
 }
 
-/// Event detail page with RSVP/participation, "How to Get There" route guide,
-/// and Tourism Coordinator contact/inquiry button.
+/// Event detail page with RSVP/participation, bookmarks, "How to Get There"
+/// route guide, and Tourism Coordinator contact/inquiry button.
 class EventDetailPage extends ConsumerWidget {
   final String eventId;
   const EventDetailPage({super.key, required this.eventId});
@@ -107,12 +110,27 @@ class EventDetailPage extends ConsumerWidget {
       stream: discovery.promoteTownsAndEvents,
       builder: (context, snap) {
         final events = snap.data ?? [];
-        final event = events.firstWhere(
-          (e) => e.id == eventId,
-          orElse: () => throw Exception('Event not found'),
-        );
+        final matches = events.where((e) => e.id == eventId).toList();
+        if (matches.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Event')),
+            body: const Center(child: Text('Event not found.')),
+          );
+        }
+        final event = matches.first;
         return Scaffold(
-          appBar: AppBar(title: Text(event.title), centerTitle: true),
+          appBar: AppBar(
+            title: Text(event.title),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.bookmark_border),
+                tooltip: 'Bookmark event',
+                onPressed: () =>
+                    _saveRsvp(context, ref, event, 'interested', 'Bookmarked'),
+              ),
+            ],
+          ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -126,7 +144,11 @@ class EventDetailPage extends ConsumerWidget {
                   errorBuilder: (context, error, stackTrace) => Container(
                     height: 220,
                     color: const Color(0xFFF7F6F2),
-                    child: const Icon(Icons.event, color: Color(0xFF033300), size: 48),
+                    child: const Icon(
+                      Icons.event,
+                      color: Color(0xFF033300),
+                      size: 48,
+                    ),
                   ),
                 ),
               ),
@@ -142,11 +164,17 @@ class EventDetailPage extends ConsumerWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.location_city, size: 16, color: Color(0xFF6B6B6B)),
+                  const Icon(Icons.location_city,
+                      size: 16, color: Color(0xFF6B6B6B)),
                   const SizedBox(width: 6),
-                  Text(
-                    event.municipalityId,
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
+                  Expanded(
+                    child: Text(
+                      event.venueName ?? event.municipalityId,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6B6B6B),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -157,7 +185,10 @@ class EventDetailPage extends ConsumerWidget {
                   const SizedBox(width: 6),
                   Text(
                     '${dateFormat.format(event.startDate)} – ${dateFormat.format(event.endDate)}',
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B6B6B),
+                    ),
                   ),
                 ],
               ),
@@ -165,15 +196,63 @@ class EventDetailPage extends ConsumerWidget {
               if (event.description != null) ...[
                 Text(
                   event.description!,
-                  style: const TextStyle(fontSize: 16, color: Color(0xFF1B1B1B)),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF1B1B1B),
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
+
+              // RSVP / participation — requires a signed-in account.
+              const SectionHeader(
+                title: 'RSVP',
+                subtitle: 'Going, interested, or save for later',
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Going'),
+                      onPressed: () =>
+                          _saveRsvp(context, ref, event, 'going', 'RSVP saved'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.star_border),
+                      label: const Text('Interested'),
+                      onPressed: () => _saveRsvp(
+                        context,
+                        ref,
+                        event,
+                        'interested',
+                        'Marked interested',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
               // How to Get There
               const SectionHeader(
                 title: 'How to Get There',
                 subtitle: 'Step-by-step directions to this event',
               ),
+              const SizedBox(height: 12),
+              if (event.howToGetThere != null &&
+                  event.howToGetThere!.isNotEmpty)
+                Text(
+                  event.howToGetThere!,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF1B1B1B),
+                  ),
+                ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -191,22 +270,23 @@ class EventDetailPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 24),
+
               // Tourism Coordinator contact & inquiry
               const SectionHeader(
                 title: 'Tourism Coordinator',
-                subtitle: "Contact the municipal ${AppConstants.tourismCoordinatorTitle}",
+                subtitle:
+                    'Contact the municipal Tourism Coordinator — sign in required',
               ),
               const SizedBox(height: 12),
               ListTile(
                 leading: const Icon(Icons.business, color: Color(0xFF033300)),
-                title: Text(
-                  '${event.municipalityId} ${AppConstants.tourismCoordinatorTitle}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                title: const Text(
+                  'Send an inquiry',
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                subtitle: Text(event.contactPerson ?? 'Contact via inquiry'),
+                subtitle: const Text('Routed to this municipality’s Tourism Office'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => Navigator.of(context)
-                    .pushNamed('/inquiry/${event.municipalityId}'),
+                onTap: () => _openInquiry(context, ref, event.municipalityId),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -215,8 +295,8 @@ class EventDetailPage extends ConsumerWidget {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.email),
                   label: const Text('Send Inquiry to Tourism Coordinator'),
-                  onPressed: () => Navigator.of(context)
-                      .pushNamed('/inquiry/${event.municipalityId}'),
+                  onPressed: () =>
+                      _openInquiry(context, ref, event.municipalityId),
                 ),
               ),
               const SizedBox(height: 32),
@@ -226,6 +306,59 @@ class EventDetailPage extends ConsumerWidget {
       },
     );
   }
+
+  Future<void> _openInquiry(
+    BuildContext context,
+    WidgetRef ref,
+    String municipalityId,
+  ) async {
+    final signedIn = await requireSignIn(
+      context,
+      ref,
+      action: 'message the Tourism Coordinator',
+    );
+    if (!signedIn || !context.mounted) return;
+    context.push('/inquiry/$municipalityId');
+  }
+
+  Future<void> _saveRsvp(
+    BuildContext context,
+    WidgetRef ref,
+    EventItem event,
+    String status,
+    String successMessage,
+  ) async {
+    final signedIn = await requireSignIn(
+      context,
+      ref,
+      action: 'RSVP to ${event.title}',
+    );
+    if (!signedIn) return;
+
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null || !context.mounted) return;
+
+    try {
+      await ref
+          .read(discoveryServiceProvider)
+          .rsvpEvent(event.id, status, user.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(successMessage),
+            backgroundColor: const Color(0xFF033300),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not save your RSVP: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 }
-
-

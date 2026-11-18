@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/app_providers.dart';
 
@@ -14,6 +15,10 @@ class LoginPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Welcome to TuklasRizal'),
         centerTitle: true,
       ),
@@ -70,12 +75,21 @@ class LoginPage extends ConsumerWidget {
                     try {
                       await auth.signIn(emailCtrl.text, passwordCtrl.text);
                       if (context.mounted) {
-                        Navigator.of(context).pushReplacementNamed('/');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Welcome back!'),
+                            backgroundColor: Color(0xFF033300),
+                          ),
+                        );
+                        context.go('/');
                       }
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Login failed: $e')),
+                          SnackBar(
+                            content: Text('Sign in failed: $e'),
+                            backgroundColor: Colors.red,
+                          ),
                         );
                       }
                     }
@@ -85,7 +99,7 @@ class LoginPage extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               TextButton(
-                onPressed: () => Navigator.of(context).pushNamed('/signup'),
+                onPressed: () => context.push('/signup'),
                 child: const Text('Don\'t have an account? Sign up'),
               ),
             ],
@@ -108,6 +122,10 @@ class SignupPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Create Account'),
         centerTitle: true,
       ),
@@ -166,14 +184,41 @@ class SignupPage extends ConsumerWidget {
                   onPressed: () async {
                     final auth = ref.read(authServiceProvider);
                     try {
-                      await auth.signUp(emailCtrl.text, passwordCtrl.text, nameCtrl.text);
+                      await auth.signUp(
+                        emailCtrl.text,
+                        passwordCtrl.text,
+                        nameCtrl.text,
+                      );
                       if (context.mounted) {
-                        Navigator.of(context).pushReplacementNamed('/onboarding/interests');
+                        if (auth.emailConfirmationRequired) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Account created! Please check your email to confirm your address before signing in.',
+                              ),
+                              backgroundColor: Color(0xFFFFC800),
+                            ),
+                          );
+                          context.pushReplacement('/login');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Account created! Select your tourism interests.',
+                              ),
+                              backgroundColor: Color(0xFF033300),
+                            ),
+                          );
+                          context.pushReplacement('/onboarding/interests');
+                        }
                       }
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Signup failed: $e')),
+                          SnackBar(
+                            content: Text('Signup failed: $e'),
+                            backgroundColor: Colors.red,
+                          ),
                         );
                       }
                     }
@@ -283,11 +328,23 @@ class _InterestOnboardingPageState extends ConsumerState<InterestOnboardingPage>
               child: ElevatedButton(
                 onPressed: _selected.isEmpty
                     ? null
-                    : () {
+                    : () async {
                         final auth = ref.read(authServiceProvider);
                         final profile = auth.currentUser;
                         if (profile != null && context.mounted) {
-                          Navigator.of(context).pushReplacementNamed('/');
+                          // Save selected tourism interests to Supabase (USER_INTERESTS).
+                          await auth.setUserInterests(
+                            profile.id,
+                            _selected.toList(),
+                          );
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Interests saved!'),
+                              backgroundColor: Color(0xFF033300),
+                            ),
+                          );
+                          context.go('/');
                         }
                       },
                 child: const Text('Continue'),
