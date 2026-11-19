@@ -34,10 +34,6 @@ class EventCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onToggleSave;
 
-  /// Matches `EventDetailPage`'s Hero tag for a shared image transition.
-  /// Only pass one instance per route so tags stay unique.
-  final String? heroTag;
-
   const EventCard({
     super.key,
     required this.title,
@@ -54,130 +50,121 @@ class EventCard extends StatelessWidget {
     this.promotionReason,
     required this.onTap,
     this.onToggleSave,
-    this.heroTag,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (heroTag != null)
-                    Hero(
-                      tag: heroTag!,
-                      child: TourismImage(
-                        imageUrl: imageUrl,
-                        category: categoryKey ?? category,
-                        municipality: municipalityKey,
-                      ),
-                    )
-                  else
+    return PressScale(
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        margin: EdgeInsets.zero,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
                     TourismImage(
                       imageUrl: imageUrl,
                       category: categoryKey ?? category,
                       municipality: municipalityKey,
                     ),
-                  if (isPromoted)
-                    const Positioned(
-                      top: 6,
-                      left: 6,
-                      child: _Tag(
-                        text: 'Promoted',
-                        background: Color(0xFFFFC800),
-                        foreground: Color(0xFF033300),
+                    if (isPromoted)
+                      const Positioned(
+                        top: 6,
+                        left: 6,
+                        child: _Tag(
+                          text: 'Promoted',
+                          background: Color(0xFFFFC800),
+                          foreground: Color(0xFF033300),
+                        ),
                       ),
-                    ),
-                  if (isFeatured)
-                    const Positioned(
-                      top: 6,
-                      left: 6,
-                      child: _Tag(
-                        text: 'Featured',
-                        background: Color(0xFF033300),
-                        foreground: Colors.white,
+                    if (isFeatured)
+                      const Positioned(
+                        top: 6,
+                        left: 6,
+                        child: _Tag(
+                          text: 'Featured',
+                          background: Color(0xFF033300),
+                          foreground: Colors.white,
+                        ),
                       ),
-                    ),
-                  if (isRecommended)
-                    const Positioned(
-                      bottom: 6,
-                      left: 6,
-                      child: _Tag(
-                        text: 'Recommended for You',
-                        background: Color(0xFF033300),
-                        foreground: Color(0xFFFFC800),
+                    if (isRecommended)
+                      const Positioned(
+                        bottom: 6,
+                        left: 6,
+                        child: _Tag(
+                          text: 'Recommended for You',
+                          background: Color(0xFF033300),
+                          foreground: Color(0xFFFFC800),
+                        ),
                       ),
-                    ),
-                  if (onToggleSave != null)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: _SaveButton(
-                        isSaved: isSaved,
-                        onPressed: onToggleSave!,
+                    if (onToggleSave != null)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: _SaveButton(
+                          isSaved: isSaved,
+                          onPressed: onToggleSave!,
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      height: 1.2,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1B1B1B),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  _MetaLine(icon: Icons.location_on, text: municipality),
-                  const SizedBox(height: 2),
-                  _MetaLine(icon: Icons.event, text: date),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F6F2),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      category,
-                      maxLines: 1,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF033300),
+                        fontSize: 14,
+                        height: 1.2,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1B1B1B),
                       ),
                     ),
-                  ),
-                  if (promotionReason != null) ...[
+                    const SizedBox(height: 4),
+                    _MetaLine(icon: Icons.location_on, text: municipality),
+                    const SizedBox(height: 2),
+                    _MetaLine(icon: Icons.event, text: date),
                     const SizedBox(height: 6),
-                    PromotionReasonPill(text: promotionReason!),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7F6F2),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        category,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF033300),
+                        ),
+                      ),
+                    ),
+                    if (promotionReason != null) ...[
+                      const SizedBox(height: 6),
+                      PromotionReasonPill(text: promotionReason!),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

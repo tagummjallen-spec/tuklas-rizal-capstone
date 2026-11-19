@@ -183,7 +183,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                               e.municipalityId,
                             ),
                             imageUrl: e.imageUrl,
-                            heroTag: 'event-image-${e.id}',
                             isPromoted: e.promotionWeight > 1.0,
                             isFeatured: e.isFeatured,
                             promotionReason: eventPromotionReason(

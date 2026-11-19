@@ -34,11 +34,11 @@ class AppConstants {
 
   // Geofence
   static const String geofenceWelcomeAlertTitle = 'Welcome to {municipality}!';
-  static const String geofenceDebugToggleLabel = 'Simulate Geofence Entry (Dev)';
+  static const String geofenceDebugToggleLabel =
+      'Simulate Geofence Entry (Dev)';
 
   // Provincial Tourism Office support contacts (source: rizalprovince.ph).
-  static const String tourismOfficeName =
-      'Rizal Provincial Tourism Office';
+  static const String tourismOfficeName = 'Rizal Provincial Tourism Office';
   static const String tourismOfficeAddress =
       '3/F Rizal Provincial Capitol, Circumferencial Road cor. P. Oliveros '
       'St., Ynares Center Complex, Antipolo City, 1870';
@@ -62,7 +62,8 @@ class AppConstants {
 
   // Supabase placeholder — replace with real keys before production build.
   static const String supabaseUrl = 'https://dhqzhlhyblcziouyoltp.supabase.co';
-  static const String supabaseAnonKey = 'sb_publishable_kEqnKvO1fUU3xMmvZVCylg_el4jTWnr';
+  static const String supabaseAnonKey =
+      'sb_publishable_kEqnKvO1fUU3xMmvZVCylg_el4jTWnr';
 
   /// Returns true only when Supabase credentials have been replaced with real values.
   /// When false, the app launches in mock/demo mode without initializing Supabase.
@@ -82,7 +83,10 @@ class AppConstants {
   /// On web the code is returned to the origin and the app-level session
   /// bootstrap routes first-time users to interest onboarding.
   static String get oauthRedirectUrl {
-    if (kIsWeb) return Uri.base.origin;
+    // Google/Supabase match allowlisted redirect URLs exactly. A trailing '/'
+    // on the bare origin avoids hash fragments such as `#/login` and keeps the
+    // web URL identical across PKCE sign-in and code exchange.
+    if (kIsWeb) return '${Uri.base.origin}/';
     return 'io.supabase.tuklasrizal://login-callback';
   }
 

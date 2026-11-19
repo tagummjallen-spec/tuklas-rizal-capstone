@@ -23,6 +23,37 @@ import '../../features/contact/pages/contact_us_page.dart';
 import '../../features/contact/pages/lgu_access_request_page.dart';
 import '../../features/about/pages/about_page.dart';
 
+/// One shared, minimalist transition for every route: a fast fade with a
+/// slight upward slide. No shared-element/Hero flight, so list thumbnails never
+/// leave a trailing image behind during navigation.
+CustomTransitionPage<T> fadeSlidePage<T>({
+  required BuildContext context,
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<T>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 200),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final slide = Tween<Offset>(
+        begin: const Offset(0, 0.03),
+        end: Offset.zero,
+      ).animate(curved);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(position: slide, child: child),
+      );
+    },
+  );
+}
+
 /// GoRouter configuration with a BottomNavigationBar shell.
 ///
 /// Routes mirror the mobile app feature flow from CAPSTONE_REQUIREMENTS.md.
@@ -52,7 +83,11 @@ final GoRouter appRouter = GoRouter(
   },
   routes: [
     ShellRoute(
-      builder: (context, state, child) => _BottomNavShell(child: child),
+      pageBuilder: (context, state, child) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: _BottomNavShell(child: child),
+      ),
       // Every child route relies on GoRouter's own `state.pageKey`; no manual
       // LocalKey is ever reused, so each match reserves a distinct page key.
       // Callers must `go` (not `push`) to switch between these shell tabs.
@@ -60,37 +95,65 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/',
           name: 'home',
-          builder: (context, state) => const HomePage(),
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const HomePage(),
+          ),
         ),
         GoRoute(
           path: '/explore',
           name: 'explore',
-          builder: (context, state) => const ExplorePage(),
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const ExplorePage(),
+          ),
         ),
         GoRoute(
           path: '/events',
           name: 'events',
-          builder: (context, state) => const EventsPage(),
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const EventsPage(),
+          ),
         ),
         GoRoute(
           path: '/saved',
           name: 'saved',
-          builder: (context, state) => const SavedPage(),
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const SavedPage(),
+          ),
         ),
         GoRoute(
           path: '/coordinators',
           name: 'coordinators',
-          builder: (context, state) => const CoordinatorsPage(),
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const CoordinatorsPage(),
+          ),
         ),
         GoRoute(
           path: '/assistant',
           name: 'assistant',
-          builder: (context, state) => const AssistantPage(),
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const AssistantPage(),
+          ),
         ),
         GoRoute(
           path: '/profile',
           name: 'profile',
-          builder: (context, state) => const ProfilePage(),
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const ProfilePage(),
+          ),
         ),
       ],
     ),
@@ -98,22 +161,38 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/login',
       name: 'login',
-      builder: (context, state) => const LoginPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const LoginPage(),
+      ),
     ),
     GoRoute(
       path: '/signup',
       name: 'signup',
-      builder: (context, state) => const SignupPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const SignupPage(),
+      ),
     ),
     GoRoute(
       path: '/settings',
       name: 'settings',
-      builder: (context, state) => const SettingsPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const SettingsPage(),
+      ),
     ),
     GoRoute(
       path: '/notifications',
       name: 'notifications',
-      builder: (context, state) => const NotificationsPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const NotificationsPage(),
+      ),
     ),
     // Contact Us & LGU Coordinator Inquiry. A dedicated root-level page keeps
     // the shell navigator's page key unique, so opening it from Settings can
@@ -121,79 +200,115 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/contact',
       name: 'contact',
-      pageBuilder: (context, state) => CustomTransitionPage<void>(
-        key: state.pageKey,
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
         child: const ContactUsPage(),
-        transitionDuration: const Duration(milliseconds: 240),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
       ),
     ),
     // About Rizal Events Hub — also a root-level page (same rule as Contact).
     GoRoute(
       path: '/about',
       name: 'about',
-      builder: (context, state) => const AboutPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const AboutPage(),
+      ),
     ),
     // LGU / Admin access request with verification document upload.
     GoRoute(
       path: '/lgu-access-request',
       name: 'lgu_access_request',
-      builder: (context, state) => const LguAccessRequestPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const LguAccessRequestPage(),
+      ),
     ),
     GoRoute(
       path: '/auth-callback',
       name: 'auth_callback',
-      builder: (context, state) => const OAuthCallbackPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const OAuthCallbackPage(),
+      ),
     ),
     GoRoute(
       path: '/submit/:type',
       name: 'submit_content',
-      builder: (context, state) =>
-          SubmitContentPage(type: state.pathParameters['type'] ?? 'event'),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: SubmitContentPage(type: state.pathParameters['type'] ?? 'event'),
+      ),
     ),
     GoRoute(
       path: '/onboarding',
       name: 'onboarding',
-      builder: (context, state) => const OnboardingFlow(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const OnboardingFlow(),
+      ),
     ),
     GoRoute(
       path: '/onboarding/interests',
       name: 'interest_onboarding',
-      builder: (context, state) => const InterestOnboardingPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const InterestOnboardingPage(),
+      ),
     ),
     // Detail / action routes — defined in combined feature files
     GoRoute(
       path: '/poi/:id',
       name: 'poi_detail',
-      builder: (context, state) =>
-          PoiDetailPage(poiId: state.pathParameters['id']!),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: PoiDetailPage(poiId: state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/directions',
       name: 'directions',
-      builder: (context, state) => const DirectionsPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const DirectionsPage(),
+      ),
     ),
     GoRoute(
       path: '/event/:id',
       name: 'event_detail',
-      builder: (context, state) => EventDetailPage(
-        eventId: state.pathParameters['id']!,
-        // Optional Hero tag handed over by a card so the photo can fly
-        // between the list and this page.
-        heroTag: state.uri.queryParameters['hero'],
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: EventDetailPage(eventId: state.pathParameters['id']!),
       ),
     ),
     GoRoute(
       path: '/inquiry/:municipalityId',
       name: 'inquiry',
-      builder: (context, state) =>
-          InquiryPage(municipalityId: state.pathParameters['municipalityId']!),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: InquiryPage(
+          municipalityId: state.pathParameters['municipalityId']!,
+        ),
+      ),
     ),
     GoRoute(
       path: '/geofence-simulator',
       name: 'geofence_simulator',
-      builder: (context, state) => const GeofenceSimulatorPage(),
+      pageBuilder: (context, state) => fadeSlidePage(
+        context: context,
+        state: state,
+        child: const GeofenceSimulatorPage(),
+      ),
     ),
   ],
 );

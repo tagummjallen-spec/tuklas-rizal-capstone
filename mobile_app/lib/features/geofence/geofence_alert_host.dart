@@ -28,6 +28,10 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
   GeofenceEntry? _entry;
   bool _monitoring = false;
 
+  /// Bumped on every emission (including repeated demo triggers for the same
+  /// town) so the banner gets a fresh key and visibly re-appears.
+  int _bannerVersion = 0;
+
   @override
   void initState() {
     super.initState();
@@ -35,8 +39,9 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
     _subscription = geofence.entryEvents.listen(_showBanner);
     if (ref.read(locationConsentProvider).alertsEnabled) {
       _monitoring = true;
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => geofence.startMonitoring());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => geofence.startMonitoring(),
+      );
     }
   }
 
@@ -50,7 +55,10 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
   void _showBanner(GeofenceEntry entry) {
     if (!mounted) return;
     _dismissTimer?.cancel();
-    setState(() => _entry = entry);
+    setState(() {
+      _entry = entry;
+      _bannerVersion++;
+    });
     _dismissTimer = Timer(const Duration(seconds: 10), () {
       if (mounted) setState(() => _entry = null);
     });
@@ -85,12 +93,19 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
               bottom: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: _WelcomeBanner(
-                  entry: _entry!,
-                  onDismiss: () {
-                    _dismissTimer?.cancel();
-                    setState(() => _entry = null);
-                  },
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  child: _WelcomeBanner(
+                    key: ValueKey<String>(
+                      '${_entry!.enteredAt.microsecondsSinceEpoch}-$_bannerVersion',
+                    ),
+                    entry: _entry!,
+                    onDismiss: () {
+                      _dismissTimer?.cancel();
+                      setState(() => _entry = null);
+                    },
+                  ),
                 ),
               ),
             ),
@@ -104,7 +119,11 @@ class _WelcomeBanner extends StatelessWidget {
   final GeofenceEntry entry;
   final VoidCallback onDismiss;
 
-  const _WelcomeBanner({required this.entry, required this.onDismiss});
+  const _WelcomeBanner({
+    super.key,
+    required this.entry,
+    required this.onDismiss,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -117,12 +136,12 @@ class _WelcomeBanner extends StatelessWidget {
           );
     final subtitle = poi
         ? '${entry.municipality.name}, Rizal · about '
-            '${(entry.distanceMeters ?? 0).round()} m away. '
-            'Check the POI entry for verified hours, fees and routes.'
+              '${(entry.distanceMeters ?? 0).round()} m away. '
+              'Check the POI entry for verified hours, fees and routes.'
         : (entry.municipality.description?.isNotEmpty ?? false)
-            ? entry.municipality.description!
-            : 'Discover verified events, heritage sites and local food in '
-                '${entry.municipality.name}.';
+        ? entry.municipality.description!
+        : 'Discover verified events, heritage sites and local food in '
+              '${entry.municipality.name}.';
     final office = entry.municipality.officeName;
 
     return Material(
@@ -187,7 +206,8 @@ class _WelcomeBanner extends StatelessWidget {
             ),
             IconButton(
               icon: const Icon(Icons.close, color: _forest, size: 18),
-              tooltip: 'Dismiss',
+              // No tooltip here: this host lives above the Navigator, so a
+              // Tooltip would look for an Overlay that does not exist yet.
               onPressed: onDismiss,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints.tightFor(width: 32, height: 32),

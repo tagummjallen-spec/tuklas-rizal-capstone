@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../models/chat_message.dart';
+import '../../../models/event_item.dart';
+import '../../../models/poi_logistics.dart';
 import '../../../services/rag_chat_service.dart';
+import '../../../services/saved_places_service.dart';
 
 const List<String> _starterPrompts = <String>[
   'Festivals in Angono & Tanay',
@@ -205,13 +210,13 @@ class _GuideHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'TuklasRizal Provincial Tourism Guide',
-                      style: TextStyle(
+                      style: GoogleFonts.plusJakartaSans(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -220,7 +225,11 @@ class _GuideHeader extends StatelessWidget {
                     SizedBox(height: 3),
                     Text(
                       'Verified events, heritage sites, routes & contacts',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: GoogleFonts.inter(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        height: 1.5,
+                      ),
                     ),
                   ],
                 ),
@@ -246,8 +255,11 @@ class _GuideHeader extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Icon(Icons.filter_alt_outlined,
-                  color: Color(0xFFFFC800), size: 16),
+              const Icon(
+                Icons.filter_alt_outlined,
+                color: Color(0xFFFFC800),
+                size: 16,
+              ),
               const SizedBox(width: 6),
               const Text(
                 'Focus town:',
@@ -265,15 +277,19 @@ class _GuideHeader extends StatelessWidget {
                     value: municipality,
                     isExpanded: true,
                     underline: const SizedBox.shrink(),
-                    icon: const Icon(Icons.expand_more,
-                        color: Color(0xFF033300)),
+                    icon: const Icon(
+                      Icons.expand_more,
+                      color: Color(0xFF033300),
+                    ),
                     items: [
                       const DropdownMenuItem<String?>(
                         value: null,
                         child: Text(
                           'All 14 municipalities',
                           style: TextStyle(
-                              color: Color(0xFF033300), fontSize: 13),
+                            color: Color(0xFF033300),
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       for (final town in RizalMunicipalities.all)
@@ -282,7 +298,9 @@ class _GuideHeader extends StatelessWidget {
                           child: Text(
                             town.name,
                             style: const TextStyle(
-                                color: Color(0xFF033300), fontSize: 13),
+                              color: Color(0xFF033300),
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                     ],
@@ -316,39 +334,43 @@ class _StarterPanel extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: const Color(0xFFFFC800), width: 1.5),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                Icon(Icons.tour, color: Color(0xFF033300), size: 44),
-                SizedBox(height: 10),
+                const Icon(Icons.tour, color: Color(0xFF033300), size: 44),
+                const SizedBox(height: 10),
                 Text(
                   'Kamusta! I am your Rizal tour guide.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF033300),
+                    color: const Color(0xFF033300),
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
                   'Ask in English, Tagalog or Taglish. I answer only from '
                   'verified TuklasRizal records — no invented dates, fees '
                   'or routes.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: const Color(0xFF6B6B6B),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          const Align(
+          Align(
             alignment: Alignment.centerLeft,
             child: Text(
               'Try asking:',
-              style: TextStyle(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF033300),
+                color: const Color(0xFF033300),
               ),
             ),
           ),
@@ -358,7 +380,10 @@ class _StarterPanel extends StatelessWidget {
             runSpacing: 8,
             children: [
               for (final starter in _starterPrompts)
-                _StarterChip(label: starter, onTap: () => onStarterTap(starter)),
+                _StarterChip(
+                  label: starter,
+                  onTap: () => onStarterTap(starter),
+                ),
             ],
           ),
         ],
@@ -390,14 +415,17 @@ class _StarterChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lightbulb_outline,
-                  size: 15, color: Color(0xFF033300)),
+              const Icon(
+                Icons.lightbulb_outline,
+                size: 15,
+                color: Color(0xFF033300),
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: const TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: Color(0xFF033300),
+                  color: const Color(0xFF033300),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -409,15 +437,17 @@ class _StarterChip extends StatelessWidget {
   }
 }
 
-class _ChatBubble extends StatelessWidget {
+class _ChatBubble extends ConsumerWidget {
   final ChatMessage message;
   final VoidCallback? onRetry;
 
   const _ChatBubble({required this.message, this.onRetry});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isUser = message.isUser;
+    final saved = ref.watch(savedPlacesProvider);
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
@@ -440,16 +470,17 @@ class _ChatBubble extends StatelessWidget {
             ],
             Flexible(
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(13),
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width * 0.76,
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.78,
                 ),
                 decoration: BoxDecoration(
+                  // Warm off-white paper instead of a stark white bubble.
                   color: isUser
                       ? const Color(0xFF033300)
                       : (message.isError
-                          ? const Color(0xFFFFF3E0)
-                          : Colors.white),
+                            ? const Color(0xFFFFF3E0)
+                            : const Color(0xFFFDFBF5)),
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
@@ -461,37 +492,57 @@ class _ChatBubble extends StatelessWidget {
                       : Border.all(
                           color: message.isError
                               ? const Color(0xFFFFC800)
-                              : const Color(0xFFE5E5E5),
+                              : const Color(0xFFEDE6D3),
                         ),
+                  boxShadow: isUser
+                      ? null
+                      : const [
+                          BoxShadow(
+                            color: Color(0x0A000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      message.text,
-                      style: TextStyle(
-                        color: isUser
-                            ? Colors.white
-                            : const Color(0xFF1B1B1B),
-                        fontSize: 14,
-                        height: 1.4,
+                    if (isUser)
+                      Text(
+                        message.text,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontSize: 13.5,
+                          height: 1.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      )
+                    else
+                      _AssistantRichText(
+                        text: message.text,
+                        isError: message.isError,
                       ),
-                    ),
                     if (!isUser &&
                         !message.isError &&
                         (message.sources ?? []).isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
-                        'Verified: ${message.sources!.join(' · ')}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Color(0xFF6B6B6B),
-                          fontStyle: FontStyle.italic,
+                        'VERIFIED SOURCES · ${message.sources!.join('  ·  ')}',
+                        style: GoogleFonts.inter(
+                          fontSize: 9.5,
+                          color: const Color(0xFF8A8272),
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
+                    if (!isUser &&
+                        !message.isError &&
+                        message.items.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _AiItemsSection(items: message.items, saved: saved),
+                    ],
                     if (onRetry != null) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       OutlinedButton.icon(
                         onPressed: onRetry,
                         icon: const Icon(Icons.refresh, size: 14),
@@ -500,7 +551,9 @@ class _ChatBubble extends StatelessWidget {
                           foregroundColor: const Color(0xFF033300),
                           side: const BorderSide(color: Color(0xFF033300)),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                         ),
                       ),
                     ],
@@ -514,6 +567,351 @@ class _ChatBubble extends StatelessWidget {
     );
   }
 }
+
+/// Lightweight markdown-style rendering: bold section headers, spaced bullets
+/// and editorial body copy instead of one raw unformatted text run.
+class _AssistantRichText extends StatelessWidget {
+  final String text;
+  final bool isError;
+
+  const _AssistantRichText({required this.text, required this.isError});
+
+  static final RegExp _bullet = RegExp(r'^([-*•]|\d+\.)\s+');
+
+  static bool _isBullet(String line) => _bullet.hasMatch(line);
+
+  static bool _isHeader(String line) {
+    if (line.startsWith('**') && line.endsWith('**')) return true;
+    if (line.startsWith('#')) return true;
+    if (line.endsWith(':') && line.length <= 80) return true;
+    return line.length <= 48 &&
+        !line.endsWith('.') &&
+        !line.endsWith('!') &&
+        !line.endsWith('?') &&
+        !_isBullet(line);
+  }
+
+  static String _clean(String line) => line
+      .replaceFirst(_bullet, '')
+      .replaceAll(RegExp(r'^#{1,6}\s*'), '')
+      .replaceAll('**', '')
+      .replaceAll('__', '')
+      .replaceAll('`', '')
+      .trim();
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = text.split(RegExp(r'\r?\n'));
+    final blocks = <Widget>[];
+    var i = 0;
+    while (i < lines.length) {
+      final line = lines[i].trim();
+      if (line.isEmpty) {
+        blocks.add(const SizedBox(height: 6));
+        i++;
+        continue;
+      }
+      if (_isBullet(line)) {
+        while (i < lines.length && _isBullet(lines[i].trim())) {
+          blocks.add(_BulletLine(text: _clean(lines[i].trim())));
+          i++;
+        }
+        continue;
+      }
+      if (_isHeader(line)) {
+        blocks.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 3),
+            child: Text(
+              _clean(line),
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF033300),
+                fontSize: 13,
+                height: 1.4,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        );
+      } else {
+        blocks.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              _clean(line),
+              style: GoogleFonts.inter(
+                color: isError
+                    ? const Color(0xFF7A4B00)
+                    : const Color(0xFF2B2B2B),
+                fontSize: 12.5,
+                height: 1.5,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+        );
+      }
+      i++;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: blocks,
+    );
+  }
+}
+
+class _BulletLine extends StatelessWidget {
+  final String text;
+
+  const _BulletLine({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5, left: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 7),
+            width: 5,
+            height: 5,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFC800),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                color: const Color(0xFF2B2B2B),
+                fontSize: 12.5,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Verified places/events returned with the answer, rendered as compact
+/// Follow / Interested + View Details action cards inside the AI bubble.
+class _AiItemsSection extends StatelessWidget {
+  final List<ChatItem> items;
+  final SavedPlacesController saved;
+
+  const _AiItemsSection({required this.items, required this.saved});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEDE6D3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 9, 10, 2),
+            child: Text(
+              'EXPLORE THESE VERIFIED RECORDS',
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF033300),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          for (final item in items.take(5))
+            _AiItemCard(item: item, saved: saved),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiItemCard extends StatelessWidget {
+  final ChatItem item;
+  final SavedPlacesController saved;
+
+  const _AiItemCard({required this.item, required this.saved});
+
+  @override
+  Widget build(BuildContext context) {
+    final isEvent = item.type == ChatItemType.event;
+    final isSaved = isEvent
+        ? saved.isEventSaved(item.id)
+        : saved.isPoiSaved(item.id);
+    final detailRoute = isEvent ? '/event/${item.id}' : '/poi/${item.id}';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: isEvent
+                  ? const Color(0x18FFC800)
+                  : const Color(0x18033300),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              isEvent ? Icons.event_available : Icons.place_outlined,
+              size: 15,
+              color: const Color(0xFF033300),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: const Color(0xFF1B1B1B),
+                    fontSize: 12,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${item.municipality} · ${isEvent ? 'Event' : 'Place'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF6B6B6B),
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Material(
+            color: isSaved ? const Color(0xFF033300) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () async {
+                if (isEvent) {
+                  await saved.toggleEvent(_placeholderEvent(item));
+                } else {
+                  await saved.togglePoi(_placeholderPoi(item));
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSaved
+                        ? const Color(0xFF033300)
+                        : const Color(0xFFD8CFAE),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isSaved ? Icons.check : Icons.add,
+                      size: 11,
+                      color: isSaved
+                          ? const Color(0xFFFFC800)
+                          : const Color(0xFF033300),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      isSaved
+                          ? (isEvent ? 'Saved' : 'Following')
+                          : (isEvent ? 'Interested' : 'Follow'),
+                      style: GoogleFonts.inter(
+                        color: isSaved ? Colors.white : const Color(0xFF033300),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Material(
+            color: const Color(0xFFFFC800),
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => context.push(detailRoute),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Details',
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF033300),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 10,
+                      color: Color(0xFF033300),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _municipalityId(String name) {
+  for (final town in RizalMunicipalities.all) {
+    if (town.name.toLowerCase() == name.toLowerCase()) return town.id;
+  }
+  return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+}
+
+EventItem _placeholderEvent(ChatItem item) {
+  final now = DateTime.now();
+  return EventItem(
+    id: item.id,
+    title: item.title,
+    municipalityId: _municipalityId(item.municipality),
+    status: 'approved',
+    startDate: now,
+    endDate: now,
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
+PoiLogistics _placeholderPoi(ChatItem item) => PoiLogistics(
+  id: item.id,
+  name: item.title,
+  municipalityId: _municipalityId(item.municipality),
+);
 
 class _TypingIndicator extends StatelessWidget {
   const _TypingIndicator();
@@ -560,7 +958,11 @@ class _Composer extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Color(0x11000000), blurRadius: 8, offset: Offset(0, -2)),
+          BoxShadow(
+            color: Color(0x11000000),
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
         ],
       ),
       padding: EdgeInsets.fromLTRB(
@@ -584,7 +986,9 @@ class _Composer extends StatelessWidget {
                 filled: true,
                 fillColor: const Color(0xFFF7F6F2),
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
                   borderSide: const BorderSide(color: Color(0xFFE5E5E5)),

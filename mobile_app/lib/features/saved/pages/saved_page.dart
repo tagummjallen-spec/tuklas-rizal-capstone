@@ -152,7 +152,6 @@ class _SavedPageState extends ConsumerState<SavedPage> {
                             index: i,
                             child: _SavedEventCard(
                               event: event,
-                              heroTag: 'event-image-${event.id}',
                               municipality: labels.municipality(
                                 event.municipalityId,
                               ),
@@ -280,7 +279,6 @@ class _SavedTab extends StatelessWidget {
 
 class _SavedEventCard extends StatelessWidget {
   final EventItem event;
-  final String heroTag;
   final String municipality;
   final String category;
   final String date;
@@ -289,7 +287,6 @@ class _SavedEventCard extends StatelessWidget {
 
   const _SavedEventCard({
     required this.event,
-    required this.heroTag,
     required this.municipality,
     required this.category,
     required this.date,
@@ -321,15 +318,12 @@ class _SavedEventCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Hero(
-                  tag: heroTag,
-                  child: TourismImage(
-                    imageUrl: event.imageUrl,
-                    category: category,
-                    municipality: municipality,
-                    height: 74,
-                    width: 74,
-                  ),
+                child: TourismImage(
+                  imageUrl: event.imageUrl,
+                  category: category,
+                  municipality: municipality,
+                  height: 74,
+                  width: 74,
                 ),
               ),
               const SizedBox(width: 12),

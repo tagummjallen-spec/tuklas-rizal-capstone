@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/constants/app_constants.dart';
+
 import '../models/user_profile.dart';
 
 /// Interface for authentication — mockable for offline UI testing.
@@ -134,7 +134,9 @@ class SupabaseAuthService implements AuthService {
     final fullName = rawName is String && rawName.trim().isNotEmpty
         ? rawName.trim()
         : 'TuklasRizal Guest';
-    final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
+    final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty
+        ? rawAvatar
+        : null;
     const roleTier = 1;
     const roleTitle = 'Resident & Tourist';
     final email = user.email ?? '';
@@ -283,15 +285,21 @@ class SupabaseAuthService implements AuthService {
   @override
   Future<bool> signInWithGoogle() async {
     _emailConfirmationRequired = false;
-    // PKCE is configured explicitly in `main.dart` (AuthFlowType.pkce) and
-    // `AppConstants.oauthRedirectUrl` picks the web origin or the mobile deep
-    // link. Google on mobile must open in an external browser so the deep link
-    // can return to the app; on web stay in this tab for the code exchange.
+    // PKCE is configured explicitly in `main.dart` (AuthFlowType.pkce).
+    // Web: the bare origin with a trailing slash — no `#/login` or other hash
+    // fragment, which would not match the Supabase redirect allowlist.
+    // Mobile: the registered deep link that returns to the app.
+    // Google on mobile must open in an external browser so the deep link can
+    // return to the app; on web stay in this tab for the code exchange.
+    final redirectTo = kIsWeb
+        ? '${Uri.base.origin}/'
+        : 'io.supabase.tuklasrizal://login-callback';
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: AppConstants.oauthRedirectUrl,
-      authScreenLaunchMode:
-          kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+      redirectTo: redirectTo,
+      authScreenLaunchMode: kIsWeb
+          ? LaunchMode.platformDefault
+          : LaunchMode.externalApplication,
     );
   }
 
@@ -391,9 +399,7 @@ class SupabaseAuthService implements AuthService {
 
   @override
   Future<void> updateBio(String bio) async {
-    await _client.auth.updateUser(
-      UserAttributes(data: {'bio': bio.trim()}),
-    );
+    await _client.auth.updateUser(UserAttributes(data: {'bio': bio.trim()}));
   }
 
   @override
@@ -457,7 +463,8 @@ class SupabaseAuthService implements AuthService {
         : null;
 
     if (existing != null) {
-      final needsSync = _isGoogleUser(user) &&
+      final needsSync =
+          _isGoogleUser(user) &&
           ((googleAvatar != null && existing.avatarUrl == null) ||
               (googleName != null && existing.fullName == 'User') ||
               (user.email != null && existing.email.isEmpty));
@@ -521,7 +528,9 @@ class SupabaseAuthService implements AuthService {
     final ids = await _resolveCategoryIds(categoryIds);
     if (ids.isEmpty) return;
 
-    await _client.from('user_interests').insert(
+    await _client
+        .from('user_interests')
+        .insert(
           ids.map((id) => {'user_id': userId, 'category_id': id}).toList(),
         );
   }
@@ -547,8 +556,10 @@ class SupabaseAuthService implements AuthService {
       final resolved = <String>[];
       for (final token in raw) {
         final lowered = token.toLowerCase();
-        final mismatch = _categorySlugAliases[lowered] ?? _categorySlugAliases[_key(token)];
-        final id = byKey[lowered] ??
+        final mismatch =
+            _categorySlugAliases[lowered] ?? _categorySlugAliases[_key(token)];
+        final id =
+            byKey[lowered] ??
             byKey[_key(token)] ??
             (mismatch != null ? byKey[mismatch] : null) ??
             (validIds.contains(token) ? token : null);
@@ -588,20 +599,17 @@ class SupabaseAuthService implements AuthService {
     String? barangayId,
     bool isApproved = true,
   }) async {
-    await _client.from('users').upsert(
-      {
-        'id': userId,
-        'email': email,
-        'full_name': fullName,
-        'avatar_url': avatarUrl,
-        'role_tier': roleTier,
-        'role_title': roleTitle ?? UserProfile.roleTitleFor(roleTier),
-        'municipality_id': municipalityId,
-        'barangay_id': barangayId,
-        'is_approved': isApproved,
-      },
-      onConflict: 'id',
-    );
+    await _client.from('users').upsert({
+      'id': userId,
+      'email': email,
+      'full_name': fullName,
+      'avatar_url': avatarUrl,
+      'role_tier': roleTier,
+      'role_title': roleTitle ?? UserProfile.roleTitleFor(roleTier),
+      'municipality_id': municipalityId,
+      'barangay_id': barangayId,
+      'is_approved': isApproved,
+    }, onConflict: 'id');
   }
 }
 

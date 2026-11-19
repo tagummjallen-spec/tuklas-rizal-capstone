@@ -55,9 +55,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           )
         : RecommendationInterests.empty;
     bool isRecommendedEvent(EventItem event) => recommended.matches(
-          event.categoryId,
-          labels.category(event.categoryId),
-        );
+      event.categoryId,
+      labels.category(event.categoryId),
+    );
 
     final barangays = _selectedMunicipalityId != null
         ? RizalBarangays.forMunicipality(_selectedMunicipalityId!)
@@ -148,7 +148,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF033300), Color(0xFF0A5A16)],
@@ -164,8 +166,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                           color: const Color(0xFFFFC800),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.auto_awesome,
-                            color: Color(0xFF033300), size: 22),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: Color(0xFF033300),
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
@@ -192,8 +197,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                           ],
                         ),
                       ),
-                      const Icon(Icons.arrow_forward_ios,
-                          color: Color(0xFFFFC800), size: 16),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Color(0xFFFFC800),
+                        size: 16,
+                      ),
                     ],
                   ),
                 ),
@@ -401,14 +409,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   e.municipalityId,
                                 ),
                                 imageUrl: e.imageUrl,
-                                heroTag: 'home-promoted-${e.id}',
                                 isPromoted: e.promotedRank > 0,
                                 isFeatured: e.isFeatured,
                                 isRecommended: isRecommendedEvent(e),
                                 promotionReason: eventPromotionReason(
                                   event: e,
                                   isInterestMatch: isInterestMatch(e),
-                                  visitCount: visitCounts[e.municipalityId] ?? 0,
+                                  visitCount:
+                                      visitCounts[e.municipalityId] ?? 0,
                                 ),
                                 isSaved: saved.isEventSaved(e.id),
                                 onToggleSave: () => _toggleSavedEvent(e),
@@ -475,7 +483,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   e.municipalityId,
                                 ),
                                 imageUrl: e.imageUrl,
-                                heroTag: 'home-featured-${e.id}',
                                 isFeatured: true,
                                 isRecommended: isRecommendedEvent(e),
                                 promotionReason: eventPromotionReason(

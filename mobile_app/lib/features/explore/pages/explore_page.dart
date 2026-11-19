@@ -231,7 +231,6 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                             p.municipalityId,
                           ),
                           imageUrl: p.imageUrl,
-                          heroTag: 'poi-image-${p.id}',
                           isRecommended: recommended.matches(
                             p.categoryId,
                             labels.category(p.categoryId),
@@ -443,15 +442,12 @@ class PoiDetailPage extends ConsumerWidget {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Hero(
-                tag: 'poi-image-${poi.id}',
-                child: TourismImage(
-                  imageUrl: poi.imageUrl,
-                  category: poi.poiType ?? labels.category(poi.categoryId),
-                  municipality: labels.municipality(poi.municipalityId),
-                  height: 220,
-                  borderRadius: BorderRadius.circular(16),
-                ),
+              TourismImage(
+                imageUrl: poi.imageUrl,
+                category: poi.poiType ?? labels.category(poi.categoryId),
+                municipality: labels.municipality(poi.municipalityId),
+                height: 220,
+                borderRadius: BorderRadius.circular(16),
               ),
               const SizedBox(height: 16),
               Text(

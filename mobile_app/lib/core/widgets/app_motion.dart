@@ -228,6 +228,42 @@ class AnimatedBookmarkIcon extends StatelessWidget {
   }
 }
 
+/// Subtle press feedback shared by tappable cards. Uses `Listener` (not a
+/// gesture recognizer) so inner InkWell buttons keep handling taps normally.
+class PressScale extends StatefulWidget {
+  final Widget child;
+  final double scale;
+
+  const PressScale({super.key, required this.child, this.scale = 0.985});
+
+  @override
+  State<PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<PressScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (!mounted || _pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => _setPressed(true),
+      onPointerUp: (_) => _setPressed(false),
+      onPointerCancel: (_) => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? widget.scale : 1.0,
+        duration: const Duration(milliseconds: 90),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 /// Number that cross-fades whenever it changes (RSVP / heart / review counts).
 class AnimatedCount extends StatelessWidget {
   final int value;

@@ -96,6 +96,13 @@ interface Retrieved {
   municipality: string | null;
 }
 
+interface ChatItem {
+  id: string;
+  type: "event" | "poi";
+  title: string;
+  municipality: string;
+}
+
 interface Generated {
   reply: string;
   provider: "groq" | "gemini";
@@ -526,6 +533,30 @@ function buildSources(events: EventRow[], pois: PoiRow[], towns: Municipality[])
   return Array.from(sources);
 }
 
+/** Verified records behind the answer, for tappable cards in the mobile app. */
+function buildItems(events: EventRow[], pois: PoiRow[]): ChatItem[] {
+  const items: ChatItem[] = [];
+  for (const event of events.slice(0, 5)) {
+    if (!event.id || !event.title) continue;
+    items.push({
+      id: event.id,
+      type: "event",
+      title: event.title,
+      municipality: townOf(event)?.name ?? "Rizal",
+    });
+  }
+  for (const poi of pois.slice(0, 5)) {
+    if (!poi.id || !poi.name) continue;
+    items.push({
+      id: poi.id,
+      type: "poi",
+      title: poi.name,
+      municipality: townOf(poi)?.name ?? "Rizal",
+    });
+  }
+  return items;
+}
+
 async function retrieve(message: string, explicitMunicipality: string | null): Promise<Retrieved> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY");
@@ -770,11 +801,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
       `${retrieved.context}\n\nVISITOR MESSAGE: ${body.message}\n\n` +
       "Answer the visitor strictly from the verified records above.";
     const generated = await generate(body.history, userPrompt);
+    const items = buildItems(retrieved.events, retrieved.pois);
 
     if (generated) {
       return jsonResponse({
         reply: generated.reply,
         sources: retrieved.sources,
+        items,
         municipality: retrieved.municipality,
         provider: generated.provider,
         model: generated.model,
@@ -785,6 +818,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return jsonResponse({
       reply: deterministicReply(retrieved),
       sources: retrieved.sources,
+      items,
       municipality: retrieved.municipality,
       provider: "database",
       model: "database-records-only",

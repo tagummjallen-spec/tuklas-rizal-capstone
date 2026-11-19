@@ -22,10 +22,7 @@ import '../event_detail_state.dart';
 class EventDetailPage extends ConsumerWidget {
   final String eventId;
 
-  /// Hero tag supplied by the card that opened this page.
-  final String? heroTag;
-
-  const EventDetailPage({super.key, required this.eventId, this.heroTag});
+  const EventDetailPage({super.key, required this.eventId});
 
   static const Color forest = Color(0xFF033300);
   static const Color cream = Color(0xFFF7F6F2);
@@ -104,15 +101,12 @@ class EventDetailPage extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Hero(
-                tag: heroTag ?? 'event-image-${event.id}',
-                child: TourismImage(
-                  imageUrl: event.imageUrl,
-                  category: category,
-                  municipality: municipality,
-                  height: 270,
-                  fit: BoxFit.cover,
-                ),
+              TourismImage(
+                imageUrl: event.imageUrl,
+                category: category,
+                municipality: municipality,
+                height: 270,
+                fit: BoxFit.cover,
               ),
               const DecoratedBox(
                 decoration: BoxDecoration(
@@ -1332,9 +1326,12 @@ class _RelatedCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 /// Current user's review eligibility for [event].
 ReviewGate _reviewGateFor(WidgetRef ref, EventItem event) {
-  final user = ref.read(authServiceProvider).currentUser ??
+  final user =
+      ref.read(authServiceProvider).currentUser ??
       ref.read(authStateProvider).valueOrNull;
-  final existing = ref.read(eventReviewsProvider).reviewByUser(event.id, user?.id);
+  final existing = ref
+      .read(eventReviewsProvider)
+      .reviewByUser(event.id, user?.id);
   return evaluateReviewGate(
     event: event,
     user: user,
@@ -1350,7 +1347,8 @@ Future<void> _startReview(
   WidgetRef ref,
   EventItem event,
 ) async {
-  var user = ref.read(authServiceProvider).currentUser ??
+  var user =
+      ref.read(authServiceProvider).currentUser ??
       ref.read(authStateProvider).valueOrNull;
   if (user == null) {
     final signedIn = await requireSignIn(
@@ -1363,7 +1361,9 @@ Future<void> _startReview(
   }
   if (user == null || !context.mounted) return;
 
-  final existing = ref.read(eventReviewsProvider).reviewByUser(event.id, user.id);
+  final existing = ref
+      .read(eventReviewsProvider)
+      .reviewByUser(event.id, user.id);
   final gate = evaluateReviewGate(
     event: event,
     user: user,
@@ -1524,10 +1524,8 @@ Future<void> _openWriteReview(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _WriteReviewSheet(
-      event: event,
-      existingReview: existingReview,
-    ),
+    builder: (_) =>
+        _WriteReviewSheet(event: event, existingReview: existingReview),
   );
 }
 
@@ -1659,7 +1657,9 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
             ),
             const SizedBox(height: 14),
             Text(
-              widget.existingReview != null ? 'Edit Your Review' : 'Write a review',
+              widget.existingReview != null
+                  ? 'Edit Your Review'
+                  : 'Write a review',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -1667,10 +1667,7 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
               ),
             ),
             const SizedBox(height: 10),
-            ReviewStatusBanner(
-              message: _gate.message,
-              positive: _gate.allowed,
-            ),
+            ReviewStatusBanner(message: _gate.message, positive: _gate.allowed),
             const SizedBox(height: 10),
             Row(
               children: [

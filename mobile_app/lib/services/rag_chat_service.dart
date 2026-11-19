@@ -10,8 +10,14 @@ class RagReply {
   final String text;
   final String? municipality;
   final List<String> sources;
+  final List<ChatItem> items;
 
-  const RagReply(this.text, {this.municipality, this.sources = const []});
+  const RagReply(
+    this.text, {
+    this.municipality,
+    this.sources = const [],
+    this.items = const [],
+  });
 }
 
 /// Contract for the live TuklasRizal AI Tour Guide.
@@ -36,7 +42,7 @@ abstract class RagChatService {
 /// fallback: the Edge Function is the single source of answers.
 class SupabaseRagChatService implements RagChatService {
   SupabaseRagChatService({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
   final List<ChatMessage> _messages = <ChatMessage>[];
@@ -107,11 +113,14 @@ class SupabaseRagChatService implements RagChatService {
         throw const FormatException('Empty response from AI Tour Guide');
       }
       if (response.status >= 400) {
-        throw Exception(data['error']?.toString() ??
-            'AI Tour Guide returned status ${response.status}');
+        throw Exception(
+          data['error']?.toString() ??
+              'AI Tour Guide returned status ${response.status}',
+        );
       }
 
-      final answer = data['reply']?.toString().trim() ??
+      final answer =
+          data['reply']?.toString().trim() ??
           data['answer']?.toString().trim() ??
           data['text']?.toString().trim() ??
           '';
@@ -124,6 +133,14 @@ class SupabaseRagChatService implements RagChatService {
           .where((source) => source.isNotEmpty)
           .toList();
 
+      // Verified records retrieved by the Edge Function, used for the inline
+      // Follow / View Details action cards. Malformed entries are ignored.
+      final items = (data['items'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((item) => ChatItem.fromJson(Map<String, dynamic>.from(item)))
+          .where((item) => item.isValid)
+          .toList();
+
       _messages.add(
         ChatMessage(
           id: 'msg-${DateTime.now().microsecondsSinceEpoch + 1}',
@@ -131,6 +148,7 @@ class SupabaseRagChatService implements RagChatService {
           isUser: false,
           municipality: data['municipality']?.toString(),
           sources: sources.isEmpty ? null : sources,
+          items: items,
           createdAt: DateTime.now(),
         ),
       );
@@ -149,8 +167,7 @@ class SupabaseRagChatService implements RagChatService {
     _publish();
   }
 
-  void _publish() =>
-      _controller.add(List<ChatMessage>.unmodifiable(_messages));
+  void _publish() => _controller.add(List<ChatMessage>.unmodifiable(_messages));
 
   static Map<String, dynamic>? _asMap(dynamic raw) {
     if (raw is Map) return Map<String, dynamic>.from(raw);
