@@ -7,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/categories.dart';
 import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/interest_matcher.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/hero_carousel.dart';
@@ -41,11 +42,20 @@ class _HomePageState extends ConsumerState<HomePage> {
     final settings = ref.watch(appSettingsProvider);
     final onboarding = ref.watch(onboardingControllerProvider);
 
-    // Saved onboarding interests feed the "Promote Towns and Events" ranking
-    // only while Rizal Events Hub Recommendations are enabled in Settings.
-    final interestCategoryIds = settings.recommendationsEnabled
-        ? _interestCategoryIds(onboarding.interests)
-        : const <String>[];
+    // Guest interests (welcome flow) or the signed-in user's live
+    // `public.user_interests` rows feed the "Recommended for You" boost while
+    // Rizal Events Hub Recommendations stay enabled in Settings.
+    final recommended = settings.recommendationsEnabled
+        ? resolveRecommendations(
+            ref.watch(recommendedInterestCategoriesProvider).valueOrNull ??
+                onboarding.interests,
+            labels,
+          )
+        : RecommendationInterests.empty;
+    bool isRecommendedEvent(EventItem event) => recommended.matches(
+          event.categoryId,
+          labels.category(event.categoryId),
+        );
 
     final barangays = _selectedMunicipalityId != null
         ? RizalBarangays.forMunicipality(_selectedMunicipalityId!)
@@ -72,7 +82,10 @@ class _HomePageState extends ConsumerState<HomePage> {
           PopupMenuButton<String>(
             tooltip: 'More',
             icon: const Icon(Icons.more_vert, color: Colors.white),
-            onSelected: (value) => context.push(value),
+            // Tab routes already live inside the shell; `go` switches tab
+            // instead of pushing a second shell page (which would duplicate
+            // the shell navigator page key). Root-level pages are pushed.
+            onSelected: (value) => _openFromMenu(context, value),
             itemBuilder: (_) => const [
               PopupMenuItem(
                 value: '/assistant',
@@ -283,7 +296,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       events: events,
                       userInterestCategoryIds: _selectedCategoryId != null
                           ? [_selectedCategoryId!]
-                          : interestCategoryIds,
+                          : recommended.categoryIds,
                       municipalityVisitCounts: {},
                     );
                     if (promoted.isEmpty) {
@@ -324,6 +337,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 heroTag: 'home-promoted-${e.id}',
                                 isPromoted: e.promotedRank > 0,
                                 isFeatured: e.isFeatured,
+                                isRecommended: isRecommendedEvent(e),
                                 isSaved: saved.isEventSaved(e.id),
                                 onToggleSave: () => _toggleSavedEvent(e),
                                 onTap: () => context.push(
@@ -350,7 +364,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                 child: StreamBuilder<List<EventItem>>(
                   stream: discovery.featuredEvents,
                   builder: (context, snap) {
-                    final events = _applyFilters(snap.data ?? []);
+                    final events = _interestFirst(
+                      _applyFilters(snap.data ?? []),
+                      isRecommendedEvent,
+                    );
                     if (events.isEmpty) {
                       if (snap.connectionState == ConnectionState.waiting) {
                         return const EventRailSkeleton();
@@ -388,6 +405,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 imageUrl: e.imageUrl,
                                 heroTag: 'home-featured-${e.id}',
                                 isFeatured: true,
+                                isRecommended: isRecommendedEvent(e),
                                 isSaved: saved.isEventSaved(e.id),
                                 onToggleSave: () => _toggleSavedEvent(e),
                                 onTap: () => context.push(
@@ -451,17 +469,29 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
   }
 
-  /// Maps onboarding interest slugs/ids onto category ids used by the scorer.
-  static List<String> _interestCategoryIds(List<String> interests) {
-    final ids = <String>[];
-    for (final interest in interests) {
-      for (final category in TourismCategories.all) {
-        if (category.id == interest || category.slug == interest) {
-          if (!ids.contains(category.id)) ids.add(category.id);
-        }
-      }
+  /// Interest matches rise to the top while the discover order of the rest is
+  /// preserved (the Dart sort is not stable, so no comparator is used).
+  List<EventItem> _interestFirst(
+    List<EventItem> events,
+    bool Function(EventItem) isMatch,
+  ) {
+    if (events.isEmpty) return events;
+    final matches = <EventItem>[];
+    final rest = <EventItem>[];
+    for (final event in events) {
+      (isMatch(event) ? matches : rest).add(event);
     }
-    return ids;
+    return [...matches, ...rest];
+  }
+
+  /// Root-level pages are pushed, shell tabs are switched with `go`.
+  void _openFromMenu(BuildContext context, String location) {
+    const shellTabs = {'/assistant', '/coordinators'};
+    if (shellTabs.contains(location)) {
+      context.go(location);
+    } else {
+      context.push(location);
+    }
   }
 
   Future<void> _toggleSavedEvent(EventItem event) async {

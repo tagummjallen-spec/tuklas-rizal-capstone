@@ -73,8 +73,11 @@ class EventItem {
       longitude: (json['longitude'] as num?)?.toDouble(),
       imageUrl: json['image_url'] as String?,
       status: json['status'] as String? ?? 'approved',
-      startDate: DateTime.parse(json['start_date'] as String),
-      endDate: DateTime.parse(json['end_date'] as String),
+      // Never let a missing or malformed timestamp crash list rendering.
+      startDate: DateTime.tryParse(json['start_date'] as String? ?? '') ??
+          DateTime.now(),
+      endDate: DateTime.tryParse(json['end_date'] as String? ?? '') ??
+          DateTime.now(),
       isFeatured: json['is_featured'] as bool? ?? false,
       promotionWeight: (json['promotion_weight'] as num?)?.toDouble() ?? 1.0,
       createdBy: json['created_by'] as String?,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/logout_confirmation.dart';
 
 /// Rizal Events Hub — App Settings.
 ///
@@ -168,10 +169,7 @@ class SettingsPage extends ConsumerWidget {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: () async {
-                            await ref.read(authServiceProvider).signOut();
-                            if (context.mounted) context.go('/login');
-                          },
+                          onPressed: () => confirmAndSignOut(context, ref),
                           icon: const Icon(Icons.logout, size: 18),
                           label: const Text('Log Out'),
                           style: _pillStyle(),
@@ -388,7 +386,10 @@ class SettingsPage extends ConsumerWidget {
                         style: TextStyle(fontSize: 12),
                       ),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context.push('/coordinators'),
+                      // Dedicated root-level Contact page: pushing a shell
+                      // tab from this root route would reserve the shell page
+                      // key twice and crash the navigator.
+                      onTap: () => context.push('/contact'),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -414,21 +415,23 @@ class SettingsPage extends ConsumerWidget {
                       },
                     ),
                     const Divider(height: 1),
-                    const ListTile(
+                    ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.info_outline, color: _forest),
-                      title: Text(
+                      leading: const Icon(Icons.info_outline, color: _forest),
+                      title: const Text(
                         'About Rizal Events Hub',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      subtitle: Text(
+                      subtitle: const Text(
                         'TuklasRizal · Culture, Arts and Tourism for the '
                         'Province of Rizal',
                         style: TextStyle(fontSize: 12),
                       ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/about'),
                     ),
                   ],
                 ),

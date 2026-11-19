@@ -14,10 +14,23 @@ abstract class StorageService {
     required String fileName,
     required String folder,
   });
+
+  /// Uploads an LGU verification document to the private
+  /// `admin-verification-docs` bucket and returns its storage path.
+  ///
+  /// The bucket is not public: applicants can read their own files and Level 4
+  /// admins can read every file (see `supabase/admin_user_approvals.sql`).
+  Future<String> uploadVerificationDocument({
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+    required String userId,
+  });
 }
 
 class SupabaseStorageService implements StorageService {
   static const String bucket = 'tourism-media';
+  static const String verificationBucket = 'admin-verification-docs';
 
   @override
   Future<String> uploadTourismImage({
@@ -65,6 +78,29 @@ class SupabaseStorageService implements StorageService {
     final micros = DateTime.now().microsecondsSinceEpoch;
     return micros.toRadixString(36);
   }
+
+  @override
+  Future<String> uploadVerificationDocument({
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+    required String userId,
+  }) async {
+    final client = Supabase.instance.client;
+    final extension = _extensionFor(fileName);
+    final path =
+        '$userId/${DateTime.now().millisecondsSinceEpoch}_${_randomSuffix()}.$extension';
+    await client.storage.from(verificationBucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: contentType,
+            upsert: false,
+            cacheControl: '3600',
+          ),
+        );
+    return path;
+  }
 }
 
 /// Offline/demo fallback: no bucket is reachable, so the app keeps the bundled
@@ -77,5 +113,15 @@ class MockStorageService implements StorageService {
     required String folder,
   }) async {
     return TourismImages.higantes;
+  }
+
+  @override
+  Future<String> uploadVerificationDocument({
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+    required String userId,
+  }) async {
+    return '$userId/demo-${fileName.replaceAll(RegExp(r'\s+'), '-')}';
   }
 }

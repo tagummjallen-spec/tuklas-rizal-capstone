@@ -59,6 +59,10 @@ abstract class AuthService {
   /// Whether the user already picked tourism interests (first-run onboarding).
   Future<bool> hasSavedInterests(String userId);
 
+  /// The user's saved tourism category ids from `public.user_interests`.
+  /// Used to prioritise matching events/POIs in the Home feed.
+  Future<List<String>> loadUserInterestCategories(String userId);
+
   /// Persist the user's selected tourism category ids (USER_INTERESTS).
   Future<void> setUserInterests(String userId, List<String> categoryIds);
 
@@ -373,6 +377,23 @@ class SupabaseAuthService implements AuthService {
     }
   }
 
+  @override
+  Future<List<String>> loadUserInterestCategories(String userId) async {
+    try {
+      final rows = await _client
+          .from('user_interests')
+          .select('category_id')
+          .eq('user_id', userId);
+      return rows
+          .map((row) => row['category_id'] as String?)
+          .whereType<String>()
+          .toList(growable: false);
+    } catch (_) {
+      // Offline / schema drift: recommendations fall back to local interests.
+      return const [];
+    }
+  }
+
   /// Creates the `public.users` row for a confirmed signup that had no session
   /// at signUp time (email-confirmation flow). Safe to call repeatedly.
   @override
@@ -575,6 +596,7 @@ class MockAuthService implements AuthService {
 
   @override
   Future<void> setUserInterests(String userId, List<String> categoryIds) async {
+    _interests = List<String>.from(categoryIds);
     _interestsSaved = categoryIds.isNotEmpty;
   }
 
@@ -623,6 +645,12 @@ class MockAuthService implements AuthService {
 
   @override
   Future<bool> hasSavedInterests(String userId) async => _interestsSaved;
+
+  @override
+  Future<List<String>> loadUserInterestCategories(String userId) async =>
+      List<String>.from(_interests);
+
+  List<String> _interests = const [];
 
   bool _interestsSaved = false;
 }

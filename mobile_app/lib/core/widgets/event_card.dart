@@ -23,6 +23,9 @@ class EventCard extends StatelessWidget {
   final bool isPromoted;
   final bool isFeatured;
   final bool isSaved;
+
+  /// Interest-based boost: shows the "Recommended for You" badge.
+  final bool isRecommended;
   final VoidCallback onTap;
   final VoidCallback? onToggleSave;
 
@@ -42,6 +45,7 @@ class EventCard extends StatelessWidget {
     this.isPromoted = false,
     this.isFeatured = false,
     this.isSaved = false,
+    this.isRecommended = false,
     required this.onTap,
     this.onToggleSave,
     this.heroTag,
@@ -94,6 +98,16 @@ class EventCard extends StatelessWidget {
                         text: 'Featured',
                         background: Color(0xFF033300),
                         foreground: Colors.white,
+                      ),
+                    ),
+                  if (isRecommended)
+                    const Positioned(
+                      bottom: 6,
+                      left: 6,
+                      child: _Tag(
+                        text: 'Recommended for You',
+                        background: Color(0xFF033300),
+                        foreground: Color(0xFFFFC800),
                       ),
                     ),
                   if (onToggleSave != null)

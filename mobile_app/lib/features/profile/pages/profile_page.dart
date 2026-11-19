@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/categories.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/logout_confirmation.dart';
 import '../../../models/user_profile.dart';
 
 /// Rizal Events Hub — My Profile.
@@ -297,10 +298,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () async {
-                          await ref.read(authServiceProvider).signOut();
-                          if (context.mounted) context.go('/login');
-                        },
+                        onPressed: () => confirmAndSignOut(context, ref),
                         icon: const Icon(Icons.logout, size: 18),
                         label: const Text('Log Out'),
                         style: OutlinedButton.styleFrom(

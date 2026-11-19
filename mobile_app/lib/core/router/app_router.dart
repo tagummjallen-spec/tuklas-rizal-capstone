@@ -19,6 +19,9 @@ import '../../features/profile/pages/profile_page.dart';
 import '../../features/profile/pages/geofence_simulator_page.dart';
 import '../../features/submissions/pages/submit_content_page.dart';
 import '../../features/settings/pages/settings_page.dart';
+import '../../features/contact/pages/contact_us_page.dart';
+import '../../features/contact/pages/lgu_access_request_page.dart';
+import '../../features/about/pages/about_page.dart';
 
 /// GoRouter configuration with a BottomNavigationBar shell.
 ///
@@ -50,6 +53,9 @@ final GoRouter appRouter = GoRouter(
   routes: [
     ShellRoute(
       builder: (context, state, child) => _BottomNavShell(child: child),
+      // Every child route relies on GoRouter's own `state.pageKey`; no manual
+      // LocalKey is ever reused, so each match reserves a distinct page key.
+      // Callers must `go` (not `push`) to switch between these shell tabs.
       routes: [
         GoRoute(
           path: '/',
@@ -108,6 +114,32 @@ final GoRouter appRouter = GoRouter(
       path: '/notifications',
       name: 'notifications',
       builder: (context, state) => const NotificationsPage(),
+    ),
+    // Contact Us & LGU Coordinator Inquiry. A dedicated root-level page keeps
+    // the shell navigator's page key unique, so opening it from Settings can
+    // never trip GoRouter's `!keyReservation.contains(key)` assertion.
+    GoRoute(
+      path: '/contact',
+      name: 'contact',
+      pageBuilder: (context, state) => CustomTransitionPage<void>(
+        key: state.pageKey,
+        child: const ContactUsPage(),
+        transitionDuration: const Duration(milliseconds: 240),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
+      ),
+    ),
+    // About Rizal Events Hub — also a root-level page (same rule as Contact).
+    GoRoute(
+      path: '/about',
+      name: 'about',
+      builder: (context, state) => const AboutPage(),
+    ),
+    // LGU / Admin access request with verification document upload.
+    GoRoute(
+      path: '/lgu-access-request',
+      name: 'lgu_access_request',
+      builder: (context, state) => const LguAccessRequestPage(),
     ),
     GoRoute(
       path: '/auth-callback',

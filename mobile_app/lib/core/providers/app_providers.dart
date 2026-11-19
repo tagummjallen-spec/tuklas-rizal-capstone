@@ -80,6 +80,28 @@ final authStateProvider = StreamProvider<UserProfile?>((ref) {
   return ref.watch(authServiceProvider).authStateChanges;
 });
 
+/// Interests that drive the "Recommended for You" boost in Home / Explore.
+///
+/// Signed-in users read their live `public.user_interests` rows; guests use the
+/// interests persisted by the four-step welcome flow. Raw tokens are resolved to
+/// live category ids/names by `resolveRecommendations`.
+final recommendedInterestCategoriesProvider =
+    FutureProvider<List<String>>((ref) async {
+  final profile = ref.watch(authStateProvider).valueOrNull;
+  if (profile != null) {
+    try {
+      final remote =
+          await ref.read(authServiceProvider).loadUserInterestCategories(
+                profile.id,
+              );
+      if (remote.isNotEmpty) return remote;
+    } catch (_) {
+      // Fall back to the device's saved interests.
+    }
+  }
+  return ref.watch(onboardingControllerProvider).interests;
+});
+
 /// Municipality/category UUID → display name, loaded once per session.
 final lookupServiceProvider = Provider<LookupService>((ref) {
   if (AppConstants.isSupabaseConfigured) {

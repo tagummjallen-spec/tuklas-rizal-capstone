@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/auth_gate.dart';
+import '../../../core/utils/interest_matcher.dart';
 import '../../../core/utils/maps_launcher.dart';
 import '../../../core/utils/tourism_images.dart';
 import '../../../core/widgets/app_motion.dart';
@@ -42,6 +43,16 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     final discovery = ref.read(discoveryServiceProvider);
     final labels = ref.watch(lookupsProvider).valueOrNull ?? LookupTables.empty;
     final saved = ref.watch(savedPlacesProvider);
+    final settings = ref.watch(appSettingsProvider);
+    // Signed-in interests come from `public.user_interests`, guests from the
+    // welcome flow. Matching POIs are listed first and badged.
+    final recommended = settings.recommendationsEnabled
+        ? resolveRecommendations(
+            ref.watch(recommendedInterestCategoriesProvider).valueOrNull ??
+                ref.watch(onboardingControllerProvider).interests,
+            labels,
+          )
+        : RecommendationInterests.empty;
 
     return Scaffold(
       appBar: AppBar(
@@ -157,7 +168,13 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
             child: StreamBuilder<List<PoiLogistics>>(
               stream: discovery.pois,
               builder: (context, snap) {
-                final pois = _filter(snap.data ?? [], labels);
+                final pois = _interestFirst(
+                  _filter(snap.data ?? [], labels),
+                  (poi) => recommended.matches(
+                    poi.categoryId,
+                    labels.category(poi.categoryId),
+                  ),
+                );
                 if (pois.isEmpty) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const _PoiListSkeleton();
@@ -212,6 +229,10 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                           ),
                           imageUrl: p.imageUrl,
                           heroTag: 'poi-image-${p.id}',
+                          isRecommended: recommended.matches(
+                            p.categoryId,
+                            labels.category(p.categoryId),
+                          ),
                           isSaved: saved.isPoiSaved(p.id),
                           onToggleSave: () => _toggleSavedPoi(p),
                           onTap: () => context.push('/poi/${p.id}'),
@@ -237,6 +258,20 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       _categoryId = null;
       _promotedOnly = false;
     });
+  }
+
+  /// Interest matches first, preserving discover order within each group.
+  List<PoiLogistics> _interestFirst(
+    List<PoiLogistics> pois,
+    bool Function(PoiLogistics) isMatch,
+  ) {
+    if (pois.isEmpty) return pois;
+    final matches = <PoiLogistics>[];
+    final rest = <PoiLogistics>[];
+    for (final poi in pois) {
+      (isMatch(poi) ? matches : rest).add(poi);
+    }
+    return [...matches, ...rest];
   }
 
   List<MapEntry<String, String>> _sorted(Map<String, String> source) {

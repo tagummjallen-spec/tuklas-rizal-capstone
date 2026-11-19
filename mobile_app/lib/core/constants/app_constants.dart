@@ -36,6 +36,18 @@ class AppConstants {
   static const String geofenceWelcomeAlertTitle = 'Welcome to {municipality}!';
   static const String geofenceDebugToggleLabel = 'Simulate Geofence Entry (Dev)';
 
+  // Provincial Tourism Office support contacts (source: rizalprovince.ph).
+  static const String tourismOfficeName =
+      'Rizal Provincial Tourism Office';
+  static const String tourismOfficeAddress =
+      '3/F Rizal Provincial Capitol, Circumferencial Road cor. P. Oliveros '
+      'St., Ynares Center Complex, Antipolo City, 1870';
+  static const String tourismOfficeEmail =
+      'tourismoffice@rizalprovincialgov.ph';
+  static const String tourismOfficeTrunkline = '(02) 8256-3000';
+  static const String tourismOfficeLocal = 'local 4241 / 4242';
+  static const String tourismOfficeHours = 'Monday – Friday, 8:00 AM – 5:00 PM';
+
   // Database table name references (mirror 001_initial_schema.sql)
   static const String tableMunicipalities = 'municipalities';
   static const String tableBarangays = 'barangays';

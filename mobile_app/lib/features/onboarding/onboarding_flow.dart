@@ -100,7 +100,23 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   }
 
   Future<void> _finish() async {
-    await ref.read(onboardingControllerProvider).complete();
+    final onboard = ref.read(onboardingControllerProvider);
+    // Persist the one-time flag before leaving so the welcome flow never shows
+    // again on this device.
+    await onboard.complete();
+
+    // Signed-in users also get the same interests in `public.user_interests` so
+    // recommendations follow them across devices.
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user != null && onboard.hasInterests) {
+      try {
+        await ref
+            .read(authServiceProvider)
+            .setUserInterests(user.id, onboard.interests);
+      } catch (_) {
+        // Local persistence already succeeded; never block the exit on sync.
+      }
+    }
   }
 
   // -----------------------------------------------------------------------

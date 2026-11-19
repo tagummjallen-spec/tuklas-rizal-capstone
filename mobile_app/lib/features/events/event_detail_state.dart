@@ -165,6 +165,10 @@ class EventReview {
   final String text;
   final DateTime createdAt;
 
+  /// `public.event_reviews.user_id` for reviews written by a signed-in user.
+  /// Seeded demo reviews have no user id.
+  final String? userId;
+
   const EventReview({
     required this.id,
     required this.eventId,
@@ -172,6 +176,7 @@ class EventReview {
     required this.rating,
     required this.text,
     required this.createdAt,
+    this.userId,
   });
 
   factory EventReview.fromJson(Map<String, dynamic> json) {
@@ -184,8 +189,19 @@ class EventReview {
       createdAt:
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
           DateTime.now(),
+      userId: json['user_id'] as String?,
     );
   }
+
+  EventReview copyWith({String? text, int? rating}) => EventReview(
+    id: id,
+    eventId: eventId,
+    author: author,
+    rating: rating ?? this.rating,
+    text: text ?? this.text,
+    createdAt: createdAt,
+    userId: userId,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -194,6 +210,7 @@ class EventReview {
     'rating': rating,
     'text': text,
     'created_at': createdAt.toIso8601String(),
+    'user_id': userId,
   };
 }
 
@@ -285,43 +302,80 @@ class EventReviewsController extends ChangeNotifier {
     return total / (baseReviewCount + custom.length);
   }
 
-  Future<void> addReview({
+  /// The signed-in user's own review for [eventId], if any.
+  EventReview? reviewByUser(String eventId, String? userId) {
+    if (userId == null || userId.isEmpty) return null;
+    for (final review in _reviews[eventId] ?? const <EventReview>[]) {
+      if (review.userId == userId) return review;
+    }
+    return null;
+  }
+
+  /// Creates or edits the signed-in user's single review for an event.
+  ///
+  /// Local-first: the review is persisted before the network write so the UI
+  /// never depends on the optional `event_reviews` table being provisioned.
+  /// When the table exists, `review_guardrails.sql` enforces
+  /// `UNIQUE (event_id, user_id)` and the same RSVP/date rules server-side.
+  Future<bool> addReview({
     required String eventId,
     required String author,
     required int rating,
     required String text,
     String? userId,
   }) async {
-    // Local-first: the review is persisted before the network write so the UI
-    // never depends on the optional `event_reviews` table being provisioned.
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
-    final review = EventReview(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      eventId: eventId,
-      author: author.trim().isEmpty ? 'Guest Explorer' : author.trim(),
-      rating: rating.clamp(1, 5),
-      text: trimmed,
-      createdAt: DateTime.now(),
-    );
-    _reviews.putIfAbsent(eventId, () => []).insert(0, review);
+    if (trimmed.isEmpty) return false;
+    final safeRating = rating.clamp(1, 5);
+    final existing = reviewByUser(eventId, userId);
+    final review = existing != null
+        ? existing.copyWith(text: trimmed, rating: safeRating)
+        : EventReview(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            eventId: eventId,
+            author: author.trim().isEmpty ? 'Guest Explorer' : author.trim(),
+            rating: safeRating,
+            text: trimmed,
+            createdAt: DateTime.now(),
+            userId: userId,
+          );
+
+    final list = _reviews.putIfAbsent(eventId, () => []);
+    if (existing != null) {
+      final index = list.indexWhere((item) => item.id == existing.id);
+      if (index >= 0) {
+        list[index] = review;
+      } else {
+        list.insert(0, review);
+      }
+    } else {
+      list.insert(0, review);
+    }
     notifyListeners();
     await _persist();
 
     if (AppConstants.isSupabaseConfigured) {
       try {
-        await Supabase.instance.client.from('event_reviews').insert({
+        final payload = {
           'event_id': eventId,
-          'user_id': userId,
           'author_name': review.author,
           'rating': review.rating,
           'review_text': review.text,
-        });
+        };
+        if (userId != null && userId.isNotEmpty) {
+          await Supabase.instance.client.from('event_reviews').upsert(
+            {...payload, 'user_id': userId},
+            onConflict: 'event_id,user_id',
+          );
+        } else {
+          await Supabase.instance.client.from('event_reviews').insert(payload);
+        }
       } catch (_) {
-        // The optional reviews table may not be provisioned — the review is
-        // already saved on this device.
+        // The optional reviews table may not be provisioned, or a guardrail
+        // policy rejected the write — the review is already saved locally.
       }
     }
+    return true;
   }
 
   Future<void> _persist() async {

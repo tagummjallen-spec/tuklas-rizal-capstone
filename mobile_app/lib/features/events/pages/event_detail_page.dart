@@ -8,8 +8,10 @@ import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/auth_gate.dart';
 import '../../../core/utils/maps_launcher.dart';
+import '../../../core/utils/review_guardrails.dart';
 import '../../../core/utils/tourism_images.dart';
 import '../../../core/widgets/app_motion.dart';
+import '../../../core/widgets/review_status_banner.dart';
 import '../../../models/event_item.dart';
 import '../../../services/lookup_service.dart';
 import '../../notifications/notification_state.dart';
@@ -399,7 +401,7 @@ class EventDetailPage extends ConsumerWidget {
                   ),
                   InkWell(
                     borderRadius: BorderRadius.circular(8),
-                    onTap: () => _openReviews(context, event.id, ref),
+                    onTap: () => _openReviews(context, ref, event),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 4,
@@ -453,8 +455,9 @@ class EventDetailPage extends ConsumerWidget {
               // ---- Community reviews (inline) ------------------------------
               _ReviewsSection(
                 eventId: event.id,
-                onOpenAll: () => _openReviews(context, event.id, ref),
-                onWriteReview: () => _startReview(context, ref, event.id),
+                reviewGate: _reviewGateFor(ref, event),
+                onOpenAll: () => _openReviews(context, ref, event),
+                onWriteReview: () => _startReview(context, ref, event),
               ),
               const Divider(height: 28),
 
@@ -965,11 +968,13 @@ class _Stars extends StatelessWidget {
 // ---------------------------------------------------------------------------
 class _ReviewsSection extends ConsumerWidget {
   final String eventId;
+  final ReviewGate reviewGate;
   final VoidCallback onOpenAll;
   final VoidCallback onWriteReview;
 
   const _ReviewsSection({
     required this.eventId,
+    required this.reviewGate,
     required this.onOpenAll,
     required this.onWriteReview,
   });
@@ -1001,6 +1006,11 @@ class _ReviewsSection extends ConsumerWidget {
         _RatingSummary(
           rating: reviews.averageRating(eventId),
           count: reviews.reviewCount(eventId),
+        ),
+        const SizedBox(height: 12),
+        ReviewStatusBanner(
+          message: reviewGate.message,
+          positive: reviewGate.allowed,
         ),
         const Divider(height: 20),
         Align(
@@ -1320,22 +1330,68 @@ class _RelatedCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Reviews full view (bottom sheet)
 // ---------------------------------------------------------------------------
-/// Prompts for a session before opening the review editor.
+/// Current user's review eligibility for [event].
+ReviewGate _reviewGateFor(WidgetRef ref, EventItem event) {
+  final user = ref.read(authServiceProvider).currentUser ??
+      ref.read(authStateProvider).valueOrNull;
+  final existing = ref.read(eventReviewsProvider).reviewByUser(event.id, user?.id);
+  return evaluateReviewGate(
+    event: event,
+    user: user,
+    rsvpStatus: ref.read(eventRsvpProvider).statusFor(event.id),
+    hasExistingReview: existing != null,
+  );
+}
+
+/// Prompts for a session, then opens the review editor when every guardrail
+/// (signed in, not the organizer, event started, "I'm Going" RSVP) passes.
 Future<void> _startReview(
   BuildContext context,
   WidgetRef ref,
-  String eventId,
+  EventItem event,
 ) async {
-  final signedIn = await requireSignIn(
-    context,
-    ref,
-    action: 'write a community review',
+  var user = ref.read(authServiceProvider).currentUser ??
+      ref.read(authStateProvider).valueOrNull;
+  if (user == null) {
+    final signedIn = await requireSignIn(
+      context,
+      ref,
+      action: 'write a community review',
+    );
+    if (!signedIn || !context.mounted) return;
+    user = ref.read(authServiceProvider).currentUser;
+  }
+  if (user == null || !context.mounted) return;
+
+  final existing = ref.read(eventReviewsProvider).reviewByUser(event.id, user.id);
+  final gate = evaluateReviewGate(
+    event: event,
+    user: user,
+    rsvpStatus: ref.read(eventRsvpProvider).statusFor(event.id),
+    hasExistingReview: existing != null,
   );
-  if (!signedIn || !context.mounted) return;
-  await _openWriteReview(context, eventId);
+  if (!gate.allowed) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(gate.message),
+          backgroundColor: EventDetailPage.forest,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    return;
+  }
+
+  await _openWriteReview(context, event, existingReview: existing);
 }
 
-Future<void> _openReviews(BuildContext context, String eventId, WidgetRef ref) {
+Future<void> _openReviews(
+  BuildContext context,
+  WidgetRef ref,
+  EventItem event,
+) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -1343,10 +1399,11 @@ Future<void> _openReviews(BuildContext context, String eventId, WidgetRef ref) {
     builder: (sheetContext) => FractionallySizedBox(
       heightFactor: 0.9,
       child: _ReviewsSheet(
-        eventId: eventId,
+        event: event,
+        reviewGate: _reviewGateFor(ref, event),
         onWriteReview: () {
           Navigator.of(sheetContext).pop();
-          _startReview(context, ref, eventId);
+          _startReview(context, ref, event);
         },
       ),
     ),
@@ -1354,10 +1411,17 @@ Future<void> _openReviews(BuildContext context, String eventId, WidgetRef ref) {
 }
 
 class _ReviewsSheet extends ConsumerWidget {
-  final String eventId;
+  final EventItem event;
+  final ReviewGate reviewGate;
   final VoidCallback onWriteReview;
 
-  const _ReviewsSheet({required this.eventId, required this.onWriteReview});
+  const _ReviewsSheet({
+    required this.event,
+    required this.reviewGate,
+    required this.onWriteReview,
+  });
+
+  String get eventId => event.id;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1419,6 +1483,13 @@ class _ReviewsSheet extends ConsumerWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: ReviewStatusBanner(
+              message: reviewGate.message,
+              positive: reviewGate.allowed,
+            ),
+          ),
           const Divider(height: 16, indent: 16, endIndent: 16),
           Expanded(
             child: ListView.separated(
@@ -1444,19 +1515,27 @@ class _ReviewsSheet extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 // Write review sheet
 // ---------------------------------------------------------------------------
-Future<void> _openWriteReview(BuildContext context, String eventId) {
+Future<void> _openWriteReview(
+  BuildContext context,
+  EventItem event, {
+  EventReview? existingReview,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _WriteReviewSheet(eventId: eventId),
+    builder: (_) => _WriteReviewSheet(
+      event: event,
+      existingReview: existingReview,
+    ),
   );
 }
 
 class _WriteReviewSheet extends ConsumerStatefulWidget {
-  final String eventId;
+  final EventItem event;
+  final EventReview? existingReview;
 
-  const _WriteReviewSheet({required this.eventId});
+  const _WriteReviewSheet({required this.event, this.existingReview});
 
   @override
   ConsumerState<_WriteReviewSheet> createState() => _WriteReviewSheetState();
@@ -1466,6 +1545,17 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
   final _controller = TextEditingController();
   int _rating = 5;
   bool _submitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existingReview;
+    if (existing != null) {
+      _rating = existing.rating;
+      _controller.text = existing.text;
+    }
+  }
 
   @override
   void dispose() {
@@ -1473,28 +1563,74 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty || _submitting) return;
-    setState(() => _submitting = true);
+  ReviewGate get _gate {
     final user = ref.read(authServiceProvider).currentUser;
-    await ref
-        .read(eventReviewsProvider)
-        .addReview(
-          eventId: widget.eventId,
-          author: user?.fullName ?? 'Guest Explorer',
-          rating: _rating,
-          text: text,
-          userId: user?.id,
-        );
-    if (!mounted) return;
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Review posted. Thank you!'),
-        backgroundColor: EventDetailPage.forest,
-      ),
+    return evaluateReviewGate(
+      event: widget.event,
+      user: user,
+      rsvpStatus: ref.read(eventRsvpProvider).statusFor(widget.event.id),
+      hasExistingReview: widget.existingReview != null,
     );
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    final gate = _gate;
+    if (!gate.allowed) {
+      setState(() => _error = gate.message);
+      return;
+    }
+    if (!isValidRating(_rating)) {
+      setState(() => _error = 'Choose a rating from 1 to 5 stars.');
+      return;
+    }
+    final validation = validateReviewText(_controller.text);
+    if (validation != null) {
+      setState(() => _error = validation);
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final user = ref.read(authServiceProvider).currentUser;
+      final posted = await ref
+          .read(eventReviewsProvider)
+          .addReview(
+            eventId: widget.event.id,
+            author: user?.fullName ?? 'Guest Explorer',
+            rating: _rating,
+            text: sanitizeReviewText(_controller.text),
+            userId: user?.id,
+          );
+      if (!mounted) return;
+      if (!posted) {
+        setState(() {
+          _submitting = false;
+          _error = 'Your review could not be saved. Please try again.';
+        });
+        return;
+      }
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            gate.isEdit
+                ? 'Review updated. Thank you!'
+                : 'Review posted. Thank you!',
+          ),
+          backgroundColor: EventDetailPage.forest,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'Something went wrong while posting. Please try again.';
+      });
+    }
   }
 
   @override
@@ -1522,13 +1658,18 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Write a review',
-              style: TextStyle(
+            Text(
+              widget.existingReview != null ? 'Edit Your Review' : 'Write a review',
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: EventDetailPage.forest,
               ),
+            ),
+            const SizedBox(height: 10),
+            ReviewStatusBanner(
+              message: _gate.message,
+              positive: _gate.allowed,
             ),
             const SizedBox(height: 10),
             Row(
@@ -1570,9 +1711,14 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
               controller: _controller,
               minLines: 3,
               maxLines: 5,
+              maxLength: reviewMaxChars,
               textInputAction: TextInputAction.newline,
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
               decoration: InputDecoration(
-                hintText: 'Share your experience at this event...',
+                hintText:
+                    'Share your experience (10–$reviewMaxChars characters)…',
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
@@ -1585,6 +1731,31 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
                 ),
               ),
             ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 16,
+                    color: Color(0xFFB3261E),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: Color(0xFFB3261E),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -1599,7 +1770,20 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: Text(_submitting ? 'Posting...' : 'Post review'),
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        widget.existingReview != null
+                            ? 'Save changes'
+                            : 'Post review',
+                      ),
               ),
             ),
           ],

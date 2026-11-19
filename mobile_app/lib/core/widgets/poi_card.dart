@@ -13,6 +13,9 @@ class PoiCard extends StatelessWidget {
   final String? categoryKey;
   final String? municipalityKey;
   final bool isSaved;
+
+  /// Interest-based boost: shows the "Recommended for You" badge.
+  final bool isRecommended;
   final VoidCallback onTap;
   final VoidCallback? onToggleSave;
 
@@ -28,6 +31,7 @@ class PoiCard extends StatelessWidget {
     this.categoryKey,
     this.municipalityKey,
     this.isSaved = false,
+    this.isRecommended = false,
     required this.onTap,
     this.onToggleSave,
     this.heroTag,
@@ -63,6 +67,29 @@ class PoiCard extends StatelessWidget {
                       imageUrl: imageUrl,
                       category: categoryKey ?? category,
                       municipality: municipalityKey,
+                    ),
+                  if (isRecommended)
+                    Positioned(
+                      bottom: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF033300),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: const Text(
+                          'Recommended for You',
+                          style: TextStyle(
+                            color: Color(0xFFFFC800),
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
                   if (onToggleSave != null)
                     Positioned(
