@@ -600,8 +600,17 @@ class EventDetailPage extends ConsumerWidget {
     EventItem event,
     String status,
   ) async {
+    // RSVPs are user-owned rows: guests and unconfirmed email accounts must
+    // sign in (and verify) before one can be submitted.
+    final signedIn = await requireSignIn(
+      context,
+      ref,
+      action: 'RSVP to this event',
+    );
+    if (!signedIn || !context.mounted) return;
+
     final active = await ref.read(eventRsvpProvider).toggle(event.id, status);
-    final user = ref.read(authServiceProvider).currentUser;
+    final user = ref.read(verifiedAuthUserProvider);
     if (user != null) {
       try {
         if (active) {
@@ -626,8 +635,6 @@ class EventDetailPage extends ConsumerWidget {
                 ? "You're going — we saved your RSVP."
                 : "Marked as interested."
           : 'RSVP cleared.',
-      action: user == null ? 'Sign in to sync' : null,
-      onAction: () => context.push('/login'),
     );
   }
 
@@ -638,7 +645,7 @@ class EventDetailPage extends ConsumerWidget {
   ) async {
     final likes = ref.read(eventLikesProvider);
     final liked = await likes.toggle(event.id);
-    final user = ref.read(authServiceProvider).currentUser;
+    final user = ref.read(verifiedAuthUserProvider);
     if (user != null) {
       // Best-effort Supabase mirror; the local heart is already saved.
       await likes.mirrorToSupabase(event.id, user.id, liked);
@@ -659,9 +666,10 @@ class EventDetailPage extends ConsumerWidget {
   ) async {
     final isSaved = await ref.read(savedPlacesProvider).toggleEvent(event);
 
-    // Signed-in users also mirror the bookmark to `event_participation` so it
-    // survives a reinstall. Guests keep the device-local bookmark silently.
-    final user = ref.read(authServiceProvider).currentUser;
+    // Verified users also mirror the bookmark to `event_participation` so it
+    // survives a reinstall. Guests and unconfirmed accounts keep the
+    // device-local bookmark only — never an RSVP row.
+    final user = ref.read(verifiedAuthUserProvider);
     if (user != null) {
       try {
         final discovery = ref.read(discoveryServiceProvider);
@@ -1326,9 +1334,11 @@ class _RelatedCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 /// Current user's review eligibility for [event].
 ReviewGate _reviewGateFor(WidgetRef ref, EventItem event) {
-  final user =
-      ref.read(authServiceProvider).currentUser ??
-      ref.read(authStateProvider).valueOrNull;
+  final verification = ref.read(authServiceProvider).unverifiedEmailMessage;
+  if (verification != null) {
+    return ReviewGate(allowed: false, message: verification);
+  }
+  final user = ref.read(verifiedAuthUserProvider);
   final existing = ref
       .read(eventReviewsProvider)
       .reviewByUser(event.id, user?.id);
@@ -1347,9 +1357,22 @@ Future<void> _startReview(
   WidgetRef ref,
   EventItem event,
 ) async {
-  var user =
-      ref.read(authServiceProvider).currentUser ??
-      ref.read(authStateProvider).valueOrNull;
+  final verification = ref.read(authServiceProvider).unverifiedEmailMessage;
+  if (verification != null) {
+    await ref.read(authServiceProvider).signOutUnconfirmedEmailSession();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(verification),
+          backgroundColor: EventDetailPage.forest,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    return;
+  }
+  var user = ref.read(verifiedAuthUserProvider);
   if (user == null) {
     final signedIn = await requireSignIn(
       context,
@@ -1357,7 +1380,7 @@ Future<void> _startReview(
       action: 'write a community review',
     );
     if (!signedIn || !context.mounted) return;
-    user = ref.read(authServiceProvider).currentUser;
+    user = ref.read(verifiedAuthUserProvider);
   }
   if (user == null || !context.mounted) return;
 
@@ -1562,7 +1585,11 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
   }
 
   ReviewGate get _gate {
-    final user = ref.read(authServiceProvider).currentUser;
+    final verification = ref.read(authServiceProvider).unverifiedEmailMessage;
+    if (verification != null) {
+      return ReviewGate(allowed: false, message: verification);
+    }
+    final user = ref.read(verifiedAuthUserProvider);
     return evaluateReviewGate(
       event: widget.event,
       user: user,
@@ -1588,20 +1615,37 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
       return;
     }
 
+    // Re-check at submit time: a session could have lost verification while
+    // the sheet was open.
+    final verification = ref.read(authServiceProvider).unverifiedEmailMessage;
+    if (verification != null) {
+      await ref.read(authServiceProvider).signOutUnconfirmedEmailSession();
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _error = verification;
+        });
+      }
+      return;
+    }
+
     setState(() {
       _submitting = true;
       _error = null;
     });
     try {
-      final user = ref.read(authServiceProvider).currentUser;
+      final user = ref.read(verifiedAuthUserProvider);
+      if (user == null) {
+        throw Exception('Sign in with a verified email to post a review.');
+      }
       final posted = await ref
           .read(eventReviewsProvider)
           .addReview(
             eventId: widget.event.id,
-            author: user?.fullName ?? 'Guest Explorer',
+            author: user.fullName,
             rating: _rating,
             text: sanitizeReviewText(_controller.text),
-            userId: user?.id,
+            userId: user.id,
           );
       if (!mounted) return;
       if (!posted) {

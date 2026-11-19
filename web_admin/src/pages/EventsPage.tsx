@@ -23,13 +23,12 @@ import {
   isProvincial,
   municipalityScope,
 } from '../lib/rbac';
+import { fmtDate, fromDateTimeInput, toDateTimeInput } from '../lib/format';
 import {
-  fmtDate,
-  fromDateTimeInput,
-  numOr,
-  numOrNull,
-  toDateTimeInput,
-} from '../lib/format';
+  validateDateRange,
+  validateRizalCoordinates,
+  validateUrl,
+} from '../lib/validation';
 import type { Lookups } from '../hooks/useLookups';
 import type { EventRecord, EventStatus, UserProfile } from '../types';
 
@@ -105,6 +104,14 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const fail = (field: keyof EventFormState | 'coordinates', message: string) => {
+    setFieldErrors({ [field]: message });
+    setFormError(message);
+  };
 
   const filters = useMemo(() => {
     const value: Record<string, string> = {};
@@ -115,15 +122,20 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: loadError } = await supabase
-      .from('events')
-      .select('*')
-      .match(filters)
-      .order('start_date', { ascending: true });
+    try {
+      const { data, error: loadError } = await supabase
+        .from('events')
+        .select('*')
+        .match(filters)
+        .order('start_date', { ascending: true });
 
-    if (loadError) setError(describeError(loadError));
-    setEvents((data ?? []) as EventRecord[]);
-    setLoading(false);
+      if (loadError) setError(describeError(loadError));
+      setEvents((data ?? []) as EventRecord[]);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setLoading(false);
+    }
   }, [filters]);
 
   useEffect(() => {
@@ -150,6 +162,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
   const openCreate = () => {
     setForm(buildEmptyForm(profile, lookups));
     setFormError(null);
+    setFieldErrors({});
     setOpen(true);
   };
 
@@ -173,77 +186,146 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
       promotion_weight: String(event.promotion_weight ?? 1),
     });
     setFormError(null);
+    setFieldErrors({});
     setOpen(true);
   };
 
   const save = async () => {
     setFormError(null);
+    setFieldErrors({});
+    setActionError(null);
+    setActionSuccess(null);
 
-    if (!form.title.trim()) return setFormError('Event title is required.');
-    if (!form.municipality_id) return setFormError('Select a municipality.');
+    if (!form.title.trim()) return fail('title', 'Event title is required.');
+    if (!form.municipality_id) return fail('municipality_id', 'Select a municipality.');
+    if (!form.category_id) return fail('category_id', 'Select a category.');
     if (!form.start_date || !form.end_date) {
-      return setFormError('Start and end date/time are required.');
+      return fail('start_date', 'Start and end date/time are required.');
     }
 
     const start = fromDateTimeInput(form.start_date);
     const end = fromDateTimeInput(form.end_date);
-    if (!start || !end) return setFormError('Invalid date/time value.');
-    if (new Date(end).getTime() < new Date(start).getTime()) {
-      return setFormError('End date/time must be on or after the start.');
+    if (!start || !end) return fail('start_date', 'Invalid date/time value.');
+    const rangeError = validateDateRange(start, end);
+    if (rangeError) return fail('end_date', rangeError);
+
+    const latRaw = form.latitude.trim();
+    const lngRaw = form.longitude.trim();
+    const latitude = latRaw === '' ? null : Number(latRaw);
+    const longitude = lngRaw === '' ? null : Number(lngRaw);
+    if (latRaw !== '' && !Number.isFinite(latitude)) {
+      return fail('latitude', 'Latitude must be a valid number.');
+    }
+    if (lngRaw !== '' && !Number.isFinite(longitude)) {
+      return fail('longitude', 'Longitude must be a valid number.');
+    }
+    const coordsError = validateRizalCoordinates(latitude, longitude);
+    if (coordsError) return fail('coordinates', coordsError);
+
+    const urlError = validateUrl(form.image_url);
+    if (urlError) return fail('image_url', urlError);
+
+    const weightRaw = form.promotion_weight.trim();
+    const promotionWeight = Number(weightRaw);
+    if (
+      weightRaw === '' ||
+      !Number.isFinite(promotionWeight) ||
+      promotionWeight < 0.5 ||
+      promotionWeight > 2
+    ) {
+      return fail('promotion_weight', 'Promotion weight must be between 0.5 and 2.0.');
     }
 
     const payload = {
       municipality_id: form.municipality_id,
       barangay_id: form.barangay_id || null,
-      category_id: form.category_id || null,
+      category_id: form.category_id,
       title: form.title.trim(),
       description: form.description.trim() || null,
       venue_name: form.venue_name.trim() || null,
       how_to_get_there: form.how_to_get_there.trim() || null,
       start_date: start,
       end_date: end,
-      latitude: numOrNull(form.latitude),
-      longitude: numOrNull(form.longitude),
+      latitude,
+      longitude,
       image_url: form.image_url || null,
       status: forcedEventStatus(profile) ?? form.status,
       is_featured: form.is_featured,
-      promotion_weight: numOr(form.promotion_weight, 1),
+      promotion_weight: promotionWeight,
     };
 
     setSaving(true);
-    const { error: saveError } = form.id
-      ? await supabase.from('events').update(payload).eq('id', form.id)
-      : await supabase.from('events').insert(payload);
+    try {
+      const { error: saveError } = form.id
+        ? await supabase.from('events').update(payload).eq('id', form.id)
+        : await supabase.from('events').insert(payload);
 
-    if (saveError) {
-      setFormError(describeError(saveError));
-    } else {
+      if (saveError) {
+        setFormError(describeError(saveError));
+        return;
+      }
       setOpen(false);
+      setActionSuccess(form.id ? 'Event updated successfully.' : 'Event created successfully.');
       await load();
+    } catch (caught) {
+      setFormError(describeError(caught));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const setStatus = async (event: EventRecord, status: EventStatus) => {
     if (!reviewer) return;
     setActionError(null);
-    const { error: updateError } = await supabase
-      .from('events')
-      .update({ status })
-      .eq('id', event.id);
-    if (updateError) setActionError(describeError(updateError));
-    await load();
+    setActionSuccess(null);
+    setBusy(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({ status })
+        .eq('id', event.id);
+      if (updateError) {
+        setActionError(describeError(updateError));
+        return;
+      }
+      setActionSuccess(
+        status === 'approved'
+          ? 'Event approved successfully.'
+          : 'Event rejected successfully.',
+      );
+      await load();
+    } catch (caught) {
+      setActionError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const toggleFeatured = async (event: EventRecord) => {
     if (!canFeature) return;
     setActionError(null);
-    const { error: updateError } = await supabase
-      .from('events')
-      .update({ is_featured: !event.is_featured })
-      .eq('id', event.id);
-    if (updateError) setActionError(describeError(updateError));
-    await load();
+    setActionSuccess(null);
+    setBusy(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({ is_featured: !event.is_featured })
+        .eq('id', event.id);
+      if (updateError) {
+        setActionError(describeError(updateError));
+        return;
+      }
+      setActionSuccess(
+        event.is_featured
+          ? 'Event removed from featured successfully.'
+          : 'Event marked as featured successfully.',
+      );
+      await load();
+    } catch (caught) {
+      setActionError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -275,6 +357,11 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
       {actionError ? (
         <div className="mb-4">
           <Alert tone="error">{actionError}</Alert>
+        </div>
+      ) : null}
+      {actionSuccess ? (
+        <div className="mb-4">
+          <Alert tone="success">{actionSuccess}</Alert>
         </div>
       ) : null}
       {error ? (
@@ -384,6 +471,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
                             <Button
                               variant="outline"
                               className="px-2 py-1 text-xs"
+                              disabled={busy}
                               onClick={() => void setStatus(event, 'approved')}
                             >
                               <Icon name="check" className="h-3.5 w-3.5" />
@@ -394,6 +482,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
                             <Button
                               variant="danger"
                               className="px-2 py-1 text-xs"
+                              disabled={busy}
                               onClick={() => void setStatus(event, 'rejected')}
                             >
                               <Icon name="close" className="h-3.5 w-3.5" />
@@ -404,6 +493,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
                             <Button
                               variant="ghost"
                               className="px-2 py-1 text-xs"
+                              disabled={busy}
                               onClick={() => void toggleFeatured(event)}
                             >
                               {event.is_featured ? 'Unfeature' : 'Feature'}
@@ -443,7 +533,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
         <div className="space-y-4">
           {formError ? <Alert tone="error">{formError}</Alert> : null}
 
-          <Field label="Event title" required>
+          <Field label="Event title" required error={fieldErrors.title}>
             <Input
               value={form.title}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
@@ -470,7 +560,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Municipality" required>
+            <Field label="Municipality" required error={fieldErrors.municipality_id}>
               <Select
                 value={form.municipality_id}
                 disabled={!provincial}
@@ -508,7 +598,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
               </Select>
             </Field>
 
-            <Field label="Category">
+            <Field label="Category" required error={fieldErrors.category_id}>
               <Select
                 value={form.category_id}
                 onChange={(event) =>
@@ -534,7 +624,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
               />
             </Field>
 
-            <Field label="Start date & time" required>
+            <Field label="Start date & time" required error={fieldErrors.start_date}>
               <Input
                 type="datetime-local"
                 value={form.start_date}
@@ -544,7 +634,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
               />
             </Field>
 
-            <Field label="End date & time" required>
+            <Field label="End date & time" required error={fieldErrors.end_date}>
               <Input
                 type="datetime-local"
                 value={form.end_date}
@@ -554,7 +644,11 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
               />
             </Field>
 
-            <Field label="Latitude" hint="Optional, e.g. 14.5266">
+            <Field
+              label="Latitude"
+              hint="Optional, e.g. 14.5266"
+              error={fieldErrors.latitude ?? fieldErrors.coordinates}
+            >
               <Input
                 inputMode="decimal"
                 value={form.latitude}
@@ -564,7 +658,11 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
               />
             </Field>
 
-            <Field label="Longitude" hint="Optional, e.g. 121.1536">
+            <Field
+              label="Longitude"
+              hint="Optional, e.g. 121.1536"
+              error={fieldErrors.longitude ?? fieldErrors.coordinates}
+            >
               <Input
                 inputMode="decimal"
                 value={form.longitude}
@@ -577,6 +675,7 @@ export default function EventsPage({ profile, lookups }: EventsPageProps) {
             <Field
               label="Promotion weight"
               hint="Used by “Promote Towns and Events” (0.5 – 2.0)."
+              error={fieldErrors.promotion_weight}
             >
               <Input
                 type="number"

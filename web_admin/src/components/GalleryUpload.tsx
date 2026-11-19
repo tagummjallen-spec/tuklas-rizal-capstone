@@ -32,6 +32,14 @@ export function GalleryUpload({
   const pick = async (file: File | undefined) => {
     if (!file) return;
     setError(null);
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file (JPEG, PNG, WebP or GIF).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Images must be 5 MB or smaller.');
+      return;
+    }
     const objectUrl = URL.createObjectURL(file);
     setLocalPreview(objectUrl);
     setUploading(true);
@@ -43,6 +51,7 @@ export function GalleryUpload({
       setError(describeError(uploadError));
       setLocalPreview(null);
     } finally {
+      URL.revokeObjectURL(objectUrl);
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';
     }
@@ -97,6 +106,7 @@ export function GalleryUpload({
           {preview ? (
             <button
               type="button"
+              disabled={uploading}
               onClick={() => {
                 onChange(null);
                 setLocalPreview(null);

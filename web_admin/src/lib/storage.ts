@@ -28,8 +28,12 @@ export async function uploadTourismImage(
   file: File,
   folder: UploadFolder,
 ): Promise<string> {
-  if (!file.type.startsWith('image/')) {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowedTypes.includes(file.type)) {
     throw new Error('Please choose an image file (JPEG, PNG, WebP or GIF).');
+  }
+  if (file.size === 0) {
+    throw new Error('That image is empty. Choose a different file.');
   }
   if (file.size > 5 * 1024 * 1024) {
     throw new Error('Images must be 5 MB or smaller.');
@@ -58,5 +62,8 @@ export async function uploadTourismImage(
   }
 
   const { data } = supabase.storage.from(TOURISM_BUCKET).getPublicUrl(path);
+  if (!data?.publicUrl) {
+    throw new Error('The image uploaded but its public link could not be generated. Try again.');
+  }
   return data.publicUrl;
 }

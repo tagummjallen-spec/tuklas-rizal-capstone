@@ -26,6 +26,7 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
   StreamSubscription<GeofenceEntry>? _subscription;
   Timer? _dismissTimer;
   GeofenceEntry? _entry;
+  String? _errorMessage;
   bool _monitoring = false;
 
   /// Bumped on every emission (including repeated demo triggers for the same
@@ -40,8 +41,33 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
     if (ref.read(locationConsentProvider).alertsEnabled) {
       _monitoring = true;
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => geofence.startMonitoring(),
+        (_) => _startMonitoring(),
       );
+    }
+  }
+
+  /// Starts monitoring and surfaces any actionable GPS/permission failure
+  /// through a small banner instead of failing silently.
+  Future<void> _startMonitoring() async {
+    final geofence = ref.read(geofenceServiceProvider);
+    try {
+      await geofence.startMonitoring();
+      if (!mounted) return;
+      final message = geofence.lastError;
+      if (message != null) {
+        setState(() {
+          _errorMessage = message;
+          _monitoring = false;
+        });
+      } else if (_errorMessage != null) {
+        setState(() => _errorMessage = null);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Could not start location alerts. Please try again.';
+        _monitoring = false;
+      });
     }
   }
 
@@ -72,11 +98,16 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
         final geofence = ref.read(geofenceServiceProvider);
         if (enabled && !_monitoring) {
           _monitoring = true;
-          geofence.startMonitoring();
+          _startMonitoring();
         } else if (!enabled && _monitoring) {
           _monitoring = false;
           geofence.stopMonitoring();
-          if (mounted) setState(() => _entry = null);
+          if (mounted) {
+            setState(() {
+              _entry = null;
+              _errorMessage = null;
+            });
+          }
         }
       },
     );
@@ -105,6 +136,68 @@ class _GeofenceAlertHostState extends ConsumerState<GeofenceAlertHost> {
                       _dismissTimer?.cancel();
                       setState(() => _entry = null);
                     },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (_errorMessage != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Material(
+                  color: _gold,
+                  borderRadius: BorderRadius.circular(12),
+                  elevation: 4,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _forest, width: 1.2),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.location_off,
+                          color: _forest,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: _forest,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close,
+                            color: _forest,
+                            size: 18,
+                          ),
+                          // No tooltip: this host lives above the Navigator.
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 32,
+                            height: 32,
+                          ),
+                          onPressed: () {
+                            if (mounted) {
+                              setState(() => _errorMessage = null);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

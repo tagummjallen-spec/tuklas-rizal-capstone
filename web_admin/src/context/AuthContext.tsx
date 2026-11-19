@@ -12,6 +12,18 @@ import { describeError, supabase } from '../lib/supabase';
 import { roleTitleFor } from '../lib/rbac';
 import type { UserProfile } from '../types';
 
+/** Exact copy shown when an email/password account has not confirmed its address. */
+export const EMAIL_VERIFICATION_REQUIRED =
+  'Please verify your email address from the confirmation link sent to your inbox before signing in or rating places.';
+
+/** True only for email/password sessions that still await verification. */
+function isUnverifiedEmailSession(session: Session | null): boolean {
+  const user = session?.user;
+  if (!user) return false;
+  if (user.app_metadata?.provider !== 'email') return false;
+  return !user.email_confirmed_at;
+}
+
 export interface SignUpInput {
   email: string;
   password: string;
@@ -27,6 +39,9 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Sends a sign-in link / 6-digit code without creating unknown users. */
+  sendLoginOtp: (email: string) => Promise<void>;
+  verifyLoginOtp: (email: string, token: string) => Promise<void>;
   /** Google OAuth via Supabase; the redirect is handled by onAuthStateChange. */
   signInWithGoogle: () => Promise<void>;
   signUp: (input: SignUpInput) => Promise<{ needsConfirmation: boolean }>;
@@ -62,7 +77,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (current: Session) => {
     setLoading(true);
     setError(null);
-
+    try {
+    // Email/password accounts without a confirmed address never get portal
+    // access. Kill the session before any profile is loaded or cached.
+    if (isUnverifiedEmailSession(current)) {
+      await supabase.auth.signOut();
+      setSession(null);
+      setProfile(null);
+      setError(EMAIL_VERIFICATION_REQUIRED);
+      setLoading(false);
+      return;
+    }
     const { data, error: fetchError } = await supabase
       .from('users')
       .select('*')
@@ -138,34 +163,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     setProfile((created as UserProfile | null) ?? null);
-    setLoading(false);
+    } catch (caught) {
+      setError(describeError(caught));
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      setSession(data.session);
-      if (data.session) {
-        void loadProfile(data.session);
-      } else {
+    void supabase.auth
+      .getSession()
+      .then(({ data, error: sessionError }) => {
+        if (cancelled) return;
+        if (sessionError) {
+          setError(describeError(sessionError));
+          setLoading(false);
+          return;
+        }
+        setSession(data.session);
+        if (data.session) {
+          void loadProfile(data.session);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setError(describeError(caught));
         setLoading(false);
-      }
-    });
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      if (!next) {
-        setProfile(null);
-        setError(null);
-        setLoading(false);
-      } else {
-        // Google OAuth returns to window.location.origin with a session.
-        // Re-verify public.users (role_tier + approval) after the redirect so
-        // approved LGU admins enter the dashboard and unapproved see pending.
-        void loadProfile(next);
-      }
+      if (cancelled) return;
+      void (async () => {
+        try {
+          setSession(next);
+          if (!next) {
+            setProfile(null);
+            // A verification-driven sign-out emits a `null` event right after
+            // loadProfile sets the message. Keep that exact copy visible.
+            setError((current) =>
+              current === EMAIL_VERIFICATION_REQUIRED ? current : null,
+            );
+            setLoading(false);
+          } else {
+            // Google OAuth returns to window.location.origin with a session.
+            // Re-verify public.users (role_tier + approval) after the redirect so
+            // approved LGU admins enter the dashboard and unapproved see pending.
+            await loadProfile(next);
+          }
+        } catch (caught) {
+          if (cancelled) return;
+          setError(describeError(caught));
+        }
+      })();
     });
 
     return () => {
@@ -183,18 +237,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (signInError) throw new Error(describeError(signInError));
       if (!data.session) throw new Error('Sign in failed. Please try again.');
+      if (isUnverifiedEmailSession(data.session)) {
+        await supabase.auth.signOut();
+        throw new Error(EMAIL_VERIFICATION_REQUIRED);
+      }
       setSession(data.session);
       await loadProfile(data.session);
     },
     [loadProfile],
   );
 
+  const sendLoginOtp = useCallback(async (email: string) => {
+    setError(null);
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (otpError) throw otpError;
+  }, []);
+
+  const verifyLoginOtp = useCallback(async (email: string, token: string) => {
+    setError(null);
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: token.trim(),
+      type: 'email',
+    });
+    if (verifyError) throw verifyError;
+    if (!data.session) throw new Error('Sign in failed. Please try again.');
+    setSession(data.session);
+    await loadProfile(data.session);
+  }, [loadProfile]);
+
   const signInWithGoogle = useCallback(async () => {
     setError(null);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/`,
       },
     });
     if (oauthError) throw new Error(describeError(oauthError));
@@ -210,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: input.email.trim(),
         password: input.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: input.fullName.trim(),
             role_tier: input.roleTier,
@@ -252,15 +336,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
-    setSession(null);
-    setError(null);
+    try {
+      await supabase.auth.signOut();
+      setError(null);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setProfile(null);
+      setSession(null);
+    }
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session) await loadProfile(data.session);
+    try {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        setError(describeError(sessionError));
+        return;
+      }
+      if (data.session) await loadProfile(data.session);
+    } catch (caught) {
+      setError(describeError(caught));
+    }
   }, [loadProfile]);
 
   const value = useMemo<AuthContextValue>(
@@ -270,12 +367,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       signIn,
+      sendLoginOtp,
+      verifyLoginOtp,
       signInWithGoogle,
       signUp,
       signOut,
       refreshProfile,
     }),
-    [session, profile, loading, error, signIn, signInWithGoogle, signUp, signOut, refreshProfile],
+    [
+      session, profile, loading, error, signIn, sendLoginOtp, verifyLoginOtp,
+      signInWithGoogle, signUp, signOut, refreshProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

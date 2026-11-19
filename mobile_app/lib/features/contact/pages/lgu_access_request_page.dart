@@ -31,6 +31,12 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
   static const Color cream = Color(0xFFF7F6F2);
   static const int maxDocs = 3;
   static const int maxDocBytes = 10 * 1024 * 1024;
+  static const Set<String> allowedDocExtensions = {
+    'pdf', 'jpg', 'jpeg', 'png', 'webp',
+  };
+  static const Set<String> allowedDocMimeTypes = {
+    'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+  };
 
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
@@ -325,8 +331,8 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
       children: [
         const Text(
           'Attach your Official LGU ID, endorsement letter or authorization '
-          'memo. JPG or PNG, up to 10 MB each, maximum $maxDocs files. PDF '
-          'endorsements may be emailed to the Provincial Tourism Office.',
+          'memo. JPG, PNG or WebP, up to 10 MB each, maximum $maxDocs files. '
+          'PDF endorsements may be emailed to the Provincial Tourism Office.',
           style: TextStyle(fontSize: 12.5, height: 1.45, color: Color(0xFF5F5F5F)),
         ),
         const SizedBox(height: 12),
@@ -357,7 +363,9 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
                     visualDensity: VisualDensity.compact,
                     tooltip: 'Remove document',
                     icon: const Icon(Icons.close, size: 18),
-                    onPressed: () => setState(() => _docs.removeAt(i)),
+                    onPressed: _submitting
+                        ? null
+                        : () => setState(() => _docs.removeAt(i)),
                   ),
                 ],
               ),
@@ -367,7 +375,7 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _pickDocument,
+              onPressed: _submitting ? null : _pickDocument,
               icon: const Icon(Icons.upload_file, size: 18),
               label: Text(
                 _docs.isEmpty ? 'Attach verification document' : 'Add another document',
@@ -497,8 +505,16 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
         maxWidth: 2000,
         imageQuality: 88,
       );
-      if (picked == null) return;
+      if (!mounted || picked == null) return;
+      final ext = picked.name.split('.').last.toLowerCase();
+      final mime = (picked.mimeType ?? '').toLowerCase();
+      if (!allowedDocExtensions.contains(ext) ||
+          (mime.isNotEmpty && !allowedDocMimeTypes.contains(mime))) {
+        _snack('Only PDF, JPG, PNG or WebP documents are supported.');
+        return;
+      }
       final length = await picked.length();
+      if (!mounted) return;
       if (length <= 0) {
         _snack('That file is empty. Please choose another document.');
         return;
@@ -507,14 +523,14 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
         _snack('Each document must be 10 MB or smaller.');
         return;
       }
-      if (!mounted) return;
       setState(() => _docs.add(picked));
-    } catch (error) {
-      _snack('Could not open the file picker. $error');
+    } catch (_) {
+      _snack('Could not open the file picker. Please try again.');
     }
   }
 
   Future<void> _submit(String userId) async {
+    if (_submitting) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_docs.isEmpty) {
       _snack('Attach at least one verification document.');
@@ -531,13 +547,24 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
       final paths = <String>[];
       for (final doc in _docs) {
         final bytes = await doc.readAsBytes();
+        if (!mounted) return;
         final path = await storage.uploadVerificationDocument(
           bytes: bytes,
           fileName: doc.name,
           contentType: _contentTypeFor(doc.name),
           userId: userId,
         );
+        if (!mounted) return;
         if (path.isNotEmpty) paths.add(path);
+      }
+      if (paths.isEmpty) {
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        _snack(
+          'None of the documents could be uploaded. Please try again or '
+          'email them to ${AppConstants.tourismOfficeEmail}.',
+        );
+        return;
       }
       final link = _linkCtrl.text.trim();
       if (link.isNotEmpty) paths.add(link);
@@ -559,9 +586,10 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
       }).eq('id', userId);
 
       if (!mounted) return;
-      setState(() => _submitting = false);
       await _showSubmitted();
-      if (mounted) context.pop();
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      context.pop();
     } on PostgrestException catch (error) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -569,7 +597,7 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
         'Could not save your request (${error.code ?? 'server error'}). '
         'Please try again or email ${AppConstants.tourismOfficeEmail}.',
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() => _submitting = false);
       _snack(

@@ -21,20 +21,25 @@ export function useLookups(): Lookups {
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const [municipalityResult, barangayResult, categoryResult] = await Promise.all([
-      supabase.from('municipalities').select('*').order('name'),
-      supabase.from('barangays').select('*').order('name'),
-      supabase.from('categories').select('*').order('name'),
-    ]);
+    try {
+      const [municipalityResult, barangayResult, categoryResult] = await Promise.all([
+        supabase.from('municipalities').select('*').order('name'),
+        supabase.from('barangays').select('*').order('name'),
+        supabase.from('categories').select('*').order('name'),
+      ]);
 
-    const firstError =
-      municipalityResult.error ?? barangayResult.error ?? categoryResult.error;
+      const firstError =
+        municipalityResult.error ?? barangayResult.error ?? categoryResult.error;
 
-    setError(firstError ? describeError(firstError) : null);
-    setMunicipalities((municipalityResult.data ?? []) as Municipality[]);
-    setBarangays((barangayResult.data ?? []) as Barangay[]);
-    setCategories((categoryResult.data ?? []) as Category[]);
-    setLoading(false);
+      setError(firstError ? describeError(firstError) : null);
+      setMunicipalities((municipalityResult.data ?? []) as Municipality[]);
+      setBarangays((barangayResult.data ?? []) as Barangay[]);
+      setCategories((categoryResult.data ?? []) as Category[]);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

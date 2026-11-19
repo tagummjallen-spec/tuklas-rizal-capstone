@@ -248,7 +248,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
   Future<void> _toggleSavedEvent(EventItem event) async {
     final isSaved = await ref.read(savedPlacesProvider).toggleEvent(event);
-    final user = ref.read(authServiceProvider).currentUser;
+    final user = ref.read(verifiedAuthUserProvider);
     if (user != null) {
       try {
         final discovery = ref.read(discoveryServiceProvider);

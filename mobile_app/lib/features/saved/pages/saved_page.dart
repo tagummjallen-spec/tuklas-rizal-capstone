@@ -189,7 +189,7 @@ class _SavedPageState extends ConsumerState<SavedPage> {
   Future<void> _removeEvent(EventItem event) async {
     await ref.read(savedPlacesProvider).toggleEvent(event);
     // Keep the signed-in participation row in sync with the bookmark.
-    final user = ref.read(authServiceProvider).currentUser;
+    final user = ref.read(verifiedAuthUserProvider);
     if (user != null) {
       try {
         await ref.read(discoveryServiceProvider).removeRsvp(event.id, user.id);

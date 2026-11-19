@@ -12,7 +12,7 @@ import {
 } from '../components/ui';
 import { describeError, supabase } from '../lib/supabase';
 import { TIER_LABELS } from '../lib/rbac';
-import { fmtDateTime, numOr } from '../lib/format';
+import { fmtDateTime, numOrNull } from '../lib/format';
 import type { Lookups } from '../hooks/useLookups';
 import type { UserProfile } from '../types';
 
@@ -30,6 +30,7 @@ export default function PromotePage({ profile, lookups }: PromotePageProps) {
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [userError, setUserError] = useState<string | null>(null);
+  const [userNotice, setUserNotice] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,15 +47,20 @@ export default function PromotePage({ profile, lookups }: PromotePageProps) {
   const loadPendingUsers = useCallback(async () => {
     setLoadingUsers(true);
     setUserError(null);
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('is_approved', false)
-      .order('created_at', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('is_approved', false)
+        .order('created_at', { ascending: true });
 
-    if (error) setUserError(describeError(error));
-    setPendingUsers((data ?? []) as UserProfile[]);
-    setLoadingUsers(false);
+      if (error) setUserError(describeError(error));
+      setPendingUsers((data ?? []) as UserProfile[]);
+    } catch (caught) {
+      setUserError(describeError(caught));
+    } finally {
+      setLoadingUsers(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -70,43 +76,54 @@ export default function PromotePage({ profile, lookups }: PromotePageProps) {
     setBoostError(null);
     setBoostNotice(null);
 
-    const boost = numOr(boostDrafts[municipalityId] ?? '1', 1);
-    if (boost < 0.5 || boost > 2) {
-      setBoostError('Weights must stay between 0.5 and 2.0.');
+    try {
+      const boost = numOrNull((boostDrafts[municipalityId] ?? '').trim());
+      if (boost === null || !Number.isFinite(boost) || boost < 0.5 || boost > 2) {
+        setBoostError('Enter a numeric weight between 0.5 and 2.0.');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('municipalities')
+        .update({ visitor_priority_boost: boost })
+        .eq('id', municipalityId);
+
+      if (error) {
+        setBoostError(describeError(error));
+      } else {
+        setBoostNotice(
+          `Promotion weight updated for ${municipalityName(municipalityId)}.`,
+        );
+        await lookups.reload();
+      }
+    } catch (caught) {
+      setBoostError(describeError(caught));
+    } finally {
       setSavingId(null);
-      return;
     }
-
-    const { error } = await supabase
-      .from('municipalities')
-      .update({ visitor_priority_boost: boost })
-      .eq('id', municipalityId);
-
-    if (error) {
-      setBoostError(describeError(error));
-    } else {
-      setBoostNotice(
-        `Promotion weight updated for ${municipalityName(municipalityId)}.`,
-      );
-      await lookups.reload();
-    }
-    setSavingId(null);
   };
 
   const approveUser = async (user: UserProfile) => {
     setApprovingId(user.id);
     setUserError(null);
-    const { error } = await supabase
-      .from('users')
-      .update({ is_approved: true })
-      .eq('id', user.id);
+    setUserNotice(null);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_approved: true })
+        .eq('id', user.id);
 
-    if (error) {
-      setUserError(describeError(error));
-    } else {
-      setPendingUsers((current) => current.filter((item) => item.id !== user.id));
+      if (error) {
+        setUserError(describeError(error));
+      } else {
+        setPendingUsers((current) => current.filter((item) => item.id !== user.id));
+        setUserNotice(`${user.full_name} can now access the admin portal.`);
+      }
+    } catch (caught) {
+      setUserError(describeError(caught));
+    } finally {
+      setApprovingId(null);
     }
-    setApprovingId(null);
   };
 
   return (
@@ -235,6 +252,11 @@ export default function PromotePage({ profile, lookups }: PromotePageProps) {
           {userError ? (
             <div className="mb-3">
               <Alert tone="error">{userError}</Alert>
+            </div>
+          ) : null}
+          {userNotice ? (
+            <div className="mb-3">
+              <Alert tone="success">{userNotice}</Alert>
             </div>
           ) : null}
 

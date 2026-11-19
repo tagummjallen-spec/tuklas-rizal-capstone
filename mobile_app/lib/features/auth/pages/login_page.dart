@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/input_validation.dart';
 import '../../../services/auth_service.dart';
 
 class _OrDivider extends StatelessWidget {
@@ -64,6 +65,50 @@ class _GoogleButton extends StatelessWidget {
   }
 }
 
+/// Live checklist shown on the sign-up form; each met rule turns green.
+class _PasswordChecklist extends StatelessWidget {
+  final String password;
+
+  const _PasswordChecklist({required this.password});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final rule in passwordChecklist(password))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Icon(
+                  rule.satisfied ? Icons.check_circle : Icons.radio_button_unchecked,
+                  size: 14,
+                  color: rule.satisfied
+                      ? const Color(0xFF2E7D32)
+                      : const Color(0xFF9E9E9E),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  rule.label,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: rule.satisfied
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFF6B6B6B),
+                    fontWeight: rule.satisfied
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Signup — email + password + name, then a 6-digit email OTP step.
 class SignupPage extends ConsumerStatefulWidget {
   const SignupPage({super.key});
@@ -75,6 +120,7 @@ class SignupPage extends ConsumerStatefulWidget {
 class _SignupPageState extends ConsumerState<SignupPage> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _otpCtrl = TextEditingController();
 
@@ -82,6 +128,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   bool _busy = false;
   bool _googleBusy = false;
   String? _error;
+  String? _nameError;
+  String? _emailError;
+  String? _passwordError;
+  String? _confirmError;
   Timer? _resendTimer;
   int _resendIn = 0;
 
@@ -90,6 +140,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     _resendTimer?.cancel();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
     _nameCtrl.dispose();
     _otpCtrl.dispose();
     super.dispose();
@@ -147,26 +198,78 @@ class _SignupPageState extends ConsumerState<SignupPage> {
         ],
         TextField(
           controller: _nameCtrl,
-          decoration: const InputDecoration(
+          enabled: !_busy,
+          onChanged: (value) {
+            if (_nameError != null || value.isNotEmpty) {
+              setState(() => _nameError = value.trim().isEmpty
+                  ? 'Full name is required'
+                  : null);
+            }
+          },
+          decoration: InputDecoration(
             labelText: 'Full Name',
-            prefixIcon: Icon(Icons.person),
+            prefixIcon: const Icon(Icons.person),
+            errorText: _nameError,
           ),
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _emailCtrl,
-          decoration: const InputDecoration(
+          enabled: !_busy,
+          onChanged: (value) {
+            if (_emailError != null || value.isNotEmpty) {
+              setState(() => _emailError = validateEmail(value));
+            }
+          },
+          decoration: InputDecoration(
             labelText: 'Email',
-            prefixIcon: Icon(Icons.email),
+            prefixIcon: const Icon(Icons.email),
+            errorText: _emailError,
           ),
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _passwordCtrl,
-          decoration: const InputDecoration(
+          enabled: !_busy,
+          onChanged: (value) {
+            if (_passwordError != null || value.isNotEmpty) {
+              setState(() {
+                _passwordError = validatePassword(value);
+                if (_confirmCtrl.text.isNotEmpty) {
+                  _confirmError = validateConfirmPassword(
+                    value,
+                    _confirmCtrl.text,
+                  );
+                }
+              });
+            }
+          },
+          decoration: InputDecoration(
             labelText: 'Password',
-            prefixIcon: Icon(Icons.lock),
+            prefixIcon: const Icon(Icons.lock),
+            errorText: _passwordError,
+          ),
+          obscureText: true,
+        ),
+        const SizedBox(height: 10),
+        _PasswordChecklist(password: _passwordCtrl.text),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _confirmCtrl,
+          enabled: !_busy,
+          onChanged: (value) {
+            if (_confirmError != null || value.isNotEmpty) {
+              setState(() => _confirmError = validateConfirmPassword(
+                    _passwordCtrl.text,
+                    value,
+                  ));
+            }
+          },
+          decoration: InputDecoration(
+            labelText: 'Confirm Password',
+            prefixIcon: const Icon(Icons.lock_outline),
+            errorText: _confirmError,
           ),
           obscureText: true,
         ),
@@ -275,28 +378,41 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   }
 
   Future<void> _submitDetails() async {
+    if (_busy) return;
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final name = _nameCtrl.text.trim();
+    final nameError = name.isEmpty ? 'Full name is required' : null;
+    final emailError = validateEmail(email);
+    final passwordError = validatePassword(password);
+    final confirmError = validateConfirmPassword(password, _confirmCtrl.text);
+
     setState(() {
       _error = null;
-      _busy = true;
+      _nameError = nameError;
+      _emailError = emailError;
+      _passwordError = passwordError;
+      _confirmError = confirmError;
     });
-
-    if (email.isEmpty || password.isEmpty || name.isEmpty) {
-      setState(() {
-        _error = 'Enter your full name, email and password.';
-        _busy = false;
-      });
+    if (nameError != null ||
+        emailError != null ||
+        passwordError != null ||
+        confirmError != null) {
+      setState(() => _error = 'Please correct the highlighted fields.');
       return;
     }
 
+    setState(() => _busy = true);
     try {
       final auth = ref.read(authServiceProvider);
       await auth.signUp(email, password, name);
 
       if (!mounted) return;
       if (auth.emailConfirmationRequired) {
+        setState(() => _busy = false);
+        // Never let an unverified address continue into the app.
+        await _showEmailConfirmationDialog(email);
+        if (!mounted) return;
         setState(() {
           _step = 1;
           _busy = false;
@@ -318,13 +434,35 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Signup failed: $e';
+        _error = friendlyAuthError(e);
         _busy = false;
       });
     }
   }
 
+  Future<void> _showEmailConfirmationDialog(String email) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Check your real inbox'),
+        content: Text(
+          'We sent a verification link/code to $email. Open it from a real, '
+          'active mailbox to confirm your address. You cannot sign in until '
+          'your email is verified.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK, verify my email'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _verifyOtp() async {
+    if (_busy) return;
     final code = _otpCtrl.text.trim();
     if (code.length != 6) {
       setState(() => _error = 'Enter the 6-digit code from your email.');
@@ -350,13 +488,14 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Verification failed: $e';
+        _error = friendlyAuthError(e);
         _busy = false;
       });
     }
   }
 
   Future<void> _resendCode() async {
+    if (_busy) return;
     setState(() {
       _error = null;
       _busy = true;
@@ -372,7 +511,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Could not resend the code: $e';
+        _error = friendlyAuthError(e);
         _busy = false;
       });
     }
@@ -516,6 +655,7 @@ class InterestOnboardingPage extends ConsumerStatefulWidget {
 
 class _InterestOnboardingPageState extends ConsumerState<InterestOnboardingPage> {
   final Set<String> _selected = {};
+  bool _submitting = false;
 
   final List<_Category> _categories = const [
     _Category(id: 'cultural', name: 'Cultural', description: 'Heritage sites and experiences', color: Color(0xFF033300)),
@@ -592,12 +732,25 @@ class _InterestOnboardingPageState extends ConsumerState<InterestOnboardingPage>
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: _selected.isEmpty
+                onPressed: _selected.isEmpty || _submitting
                     ? null
                     : () async {
-                        final auth = ref.read(authServiceProvider);
-                        final profile = await auth.ensureProfile() ?? auth.currentUser;
-                        if (profile != null && context.mounted) {
+                        if (_submitting) return;
+                        setState(() => _submitting = true);
+                        try {
+                          final auth = ref.read(authServiceProvider);
+                          final profile = await auth.ensureProfile() ?? auth.currentUser;
+                          if (!context.mounted) return;
+                          if (profile == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not load your profile. Please sign in again.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           await auth.setUserInterests(
                             profile.id,
                             _selected.toList(),
@@ -610,6 +763,19 @@ class _InterestOnboardingPageState extends ConsumerState<InterestOnboardingPage>
                             ),
                           );
                           context.go('/');
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Could not save interests: ${friendlyAuthError(e)}',
+                              ),
+                            ),
+                          );
+                        } finally {
+                          if (context.mounted) {
+                            setState(() => _submitting = false);
+                          }
                         }
                       },
                 child: const Text('Continue'),

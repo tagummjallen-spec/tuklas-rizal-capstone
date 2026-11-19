@@ -120,22 +120,22 @@ class SupabaseRagChatService implements RagChatService {
       }
 
       final answer =
-          data['reply']?.toString().trim() ??
-          data['answer']?.toString().trim() ??
-          data['text']?.toString().trim() ??
+          _stringValue(data['reply']) ??
+          _stringValue(data['answer']) ??
+          _stringValue(data['text']) ??
           '';
       if (answer.isEmpty) {
         throw const FormatException('AI Tour Guide returned no answer');
       }
 
-      final sources = (data['sources'] as List<dynamic>? ?? const [])
+      final sources = _listValue(data['sources'])
           .map((source) => source.toString())
           .where((source) => source.isNotEmpty)
           .toList();
 
       // Verified records retrieved by the Edge Function, used for the inline
       // Follow / View Details action cards. Malformed entries are ignored.
-      final items = (data['items'] as List<dynamic>? ?? const [])
+      final items = _listValue(data['items'])
           .whereType<Map>()
           .map((item) => ChatItem.fromJson(Map<String, dynamic>.from(item)))
           .where((item) => item.isValid)
@@ -182,6 +182,16 @@ class SupabaseRagChatService implements RagChatService {
     return null;
   }
 
+  /// Only accept real string answers so unexpected JSON shapes cannot leak
+  /// map/list representations into the chat bubble.
+  static String? _stringValue(dynamic raw) =>
+      raw is String && raw.trim().isNotEmpty ? raw.trim() : null;
+
+  /// Malformed or unexpected list payloads are treated as empty, never as a
+  /// cast failure that would discard an otherwise valid answer.
+  static List<dynamic> _listValue(dynamic raw) =>
+      raw is List ? raw : const <dynamic>[];
+
   static String _friendlyError(String raw) {
     final value = raw.toLowerCase();
     if (value.contains('socketexception') ||
@@ -189,9 +199,8 @@ class SupabaseRagChatService implements RagChatService {
         value.contains('network') ||
         value.contains('offline') ||
         value.contains('connection')) {
-      return 'You appear to be offline. The AI Tour Guide needs an internet '
-          'connection to check verified Rizal records. Please reconnect and '
-          'try again.';
+      return 'You appear to be offline. Check your connection and retry. The '
+          'AI Tour Guide needs internet access to verify Rizal records.';
     }
     if (value.contains('not found') || value.contains('404')) {
       return 'The AI Tour Guide service is not deployed yet. Ask your '

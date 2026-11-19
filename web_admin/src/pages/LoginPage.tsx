@@ -3,8 +3,14 @@ import type { FormEvent } from 'react';
 import { Icon } from '../components/Icon';
 import { Alert, Button, Field, Input, Select } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
-import { describeError } from '../lib/supabase';
 import { roleTitleFor } from '../lib/rbac';
+import {
+  authErrorMessage,
+  passwordRules,
+  validateConfirmPassword,
+  validateEmail,
+  validatePassword,
+} from '../lib/validation';
 import type { Barangay, Municipality } from '../types';
 
 interface LoginPageProps {
@@ -13,8 +19,32 @@ interface LoginPageProps {
 }
 
 type Mode = 'signin' | 'register';
+type SignInMode = 'password' | 'otp';
 
 const REGISTRATION_TIERS = [1, 2, 3];
+
+/** Live password-requirements list; each satisfied rule turns green. */
+function PasswordChecklist({ password }: { password: string }) {
+  return (
+    <ul className="mt-1 space-y-0.5">
+      {passwordRules(password).map((rule) => (
+        <li
+          key={rule.label}
+          className={`flex items-center gap-1.5 text-[11px] ${
+            rule.ok ? 'font-semibold text-green-700' : 'text-slate-400'
+          }`}
+        >
+          {rule.ok ? (
+            <Icon name="check" className="h-3 w-3" />
+          ) : (
+            <span className="inline-block h-2 w-2 rounded-full border border-slate-300" />
+          )}
+          {rule.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /** Standard four-colour Google mark, used on the OAuth sign-in button. */
 function GoogleGlyph() {
@@ -41,10 +71,15 @@ function GoogleGlyph() {
 }
 
 export default function LoginPage({ municipalities, barangays }: LoginPageProps) {
-  const { signIn, signInWithGoogle, signUp } = useAuth();
+  const { signIn, sendLoginOtp, verifyLoginOtp, signInWithGoogle, signUp } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
+  // Email & Password is shown immediately by default.
+  const [signInMode, setSignInMode] = useState<SignInMode>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [otpToken, setOtpToken] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [fullName, setFullName] = useState('');
   const [roleTier, setRoleTier] = useState(2);
   const [municipalityId, setMunicipalityId] = useState('');
@@ -52,6 +87,11 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
 
   const municipalityBarangays = useMemo(
     () => barangays.filter((barangay) => barangay.municipality_id === municipalityId),
@@ -63,48 +103,125 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
     setNotice(null);
   };
 
+  const changeEmail = (value: string) => {
+    setEmail(value);
+    if (emailError || value) setEmailError(validateEmail(value));
+  };
+
   const handleSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     resetMessages();
+
+    const emailProblem = validateEmail(email);
+    const passwordProblem = password ? null : 'Password is required';
+    setEmailError(emailProblem);
+    setPasswordError(passwordProblem);
+    if (emailProblem || passwordProblem) return;
+
     setBusy(true);
     try {
-      await signIn(email, password);
+      await signIn(email.trim(), password);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : describeError(caught));
+      setError(authErrorMessage(caught));
     } finally {
       setBusy(false);
     }
   };
 
+  const handleSendOtp = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    if (busy) return;
+    resetMessages();
+
+    const emailProblem = validateEmail(email);
+    setEmailError(emailProblem);
+    if (emailProblem) return;
+
+    setBusy(true);
+    try {
+      await sendLoginOtp(email.trim());
+      setOtpSent(true);
+      setOtpToken('');
+      setNotice(
+        'If an account exists for this email, a sign-in link / 6-digit code is on its way. Check your real inbox.',
+      );
+    } catch (caught) {
+      setError(authErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy) return;
+    resetMessages();
+
+    const code = otpToken.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setOtpError('Enter the 6-digit code from your email.');
+      return;
+    }
+    setOtpError(null);
+
+    setBusy(true);
+    try {
+      // A successful verification establishes a session; AuthContext then
+      // loads the LGU profile and the app routes to the correct gate.
+      await verifyLoginOtp(email.trim(), code);
+    } catch (caught) {
+      setError(authErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const switchSignInMode = (next: SignInMode) => {
+    setSignInMode(next);
+    setOtpSent(false);
+    setOtpToken('');
+    setOtpError(null);
+    setPasswordError(null);
+    resetMessages();
+  };
+
   const handleGoogleSignIn = async () => {
+    if (busy) return;
     resetMessages();
     setBusy(true);
     try {
-      // Supabase redirects back to window.location.origin. On return,
+      // Supabase redirects back to ${window.location.origin}/. On return,
       // AuthContext verifies public.users role_tier + approval before the
       // dashboard / pending-access gate is applied.
       await signInWithGoogle();
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : 'Google sign-in could not start. Please try again.',
-      );
+      setError(authErrorMessage(caught));
       setBusy(false);
     }
   };
 
   const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     resetMessages();
 
-    if (!fullName.trim()) return setError('Please enter your full name.');
+    const nameProblem = fullName.trim() ? null : 'Please enter your full name.';
+    const emailProblem = validateEmail(email);
+    const passwordProblem = validatePassword(password);
+    const confirmProblem = validateConfirmPassword(password, confirmPassword);
+    setNameError(nameProblem);
+    setEmailError(emailProblem);
+    setPasswordError(passwordProblem);
+    setConfirmError(confirmProblem);
+
+    if (nameProblem || emailProblem || passwordProblem || confirmProblem) return;
     if (!municipalityId) return setError('Please select your municipality.');
-    if (password.length < 6) {
-      return setError('Password must be at least 6 characters.');
-    }
     if (roleTier === 1 && !barangayId) {
       return setError('Barangay Officials must select their barangay.');
+    }
+    if (!REGISTRATION_TIERS.includes(roleTier)) {
+      return setError('Please select a valid LGU role.');
     }
 
     setBusy(true);
@@ -121,12 +238,13 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
       if (needsConfirmation) {
         setMode('signin');
         setPassword('');
+        setConfirmPassword('');
         setNotice(
-          'LGU account requested. Confirm your email address, then sign in. A Provincial Admin must approve your account before portal access is granted.',
+          'Check your real inbox and follow the verification link to confirm your email address before signing in. A Provincial Admin must then approve your LGU account before portal access is granted.',
         );
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : describeError(caught));
+      setError(authErrorMessage(caught));
     } finally {
       setBusy(false);
     }
@@ -204,11 +322,12 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
                 <button
                   key={tab.key}
                   type="button"
+                  disabled={busy}
                   onClick={() => {
                     setMode(tab.key);
                     resetMessages();
                   }}
-                  className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
+                  className={`rounded-md px-3 py-2 text-sm font-semibold transition disabled:opacity-60 ${
                     mode === tab.key
                       ? 'bg-white text-forest shadow-sm'
                       : 'text-slate-500 hover:text-forest'
@@ -257,45 +376,119 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
                   <span className="h-px flex-1 bg-slate-200" />
                 </div>
 
-                <form className="space-y-4" onSubmit={handleSignIn}>
-                  <Field label="Email" required>
-                    <Input
-                      type="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="coordinator@rizal.gov.ph"
-                    />
-                  </Field>
-                  <Field label="Password" required>
-                    <Input
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder="••••••••"
-                    />
-                  </Field>
-                  <Button type="submit" className="w-full" disabled={busy}>
-                    {busy ? 'Signing in…' : 'Sign in'}
-                  </Button>
-                  <p className="text-center text-xs text-slate-500">
-                    New LGU staff? Use{' '}
+                {signInMode === 'password' ? (
+                  <form className="space-y-4" onSubmit={handleSignIn}>
+                    <Field label="Email" required error={emailError}>
+                      <Input
+                        type="email"
+                        autoComplete="email"
+                        value={email}
+                        disabled={busy}
+                        onChange={(event) => changeEmail(event.target.value)}
+                        placeholder="name@gmail.com"
+                      />
+                    </Field>
+                    <Field label="Password" required error={passwordError}>
+                      <Input
+                        type="password"
+                        autoComplete="current-password"
+                        value={password}
+                        disabled={busy}
+                        onChange={(event) => {
+                          setPassword(event.target.value);
+                          if (passwordError) setPasswordError(null);
+                        }}
+                        placeholder="••••••••"
+                      />
+                    </Field>
+                    <Button type="submit" className="w-full" disabled={busy}>
+                      {busy ? 'Signing in…' : 'Sign In'}
+                    </Button>
                     <button
                       type="button"
-                      className="font-semibold text-forest underline"
-                      onClick={() => {
-                        setMode('register');
-                        resetMessages();
-                      }}
+                      disabled={busy}
+                      onClick={() => switchSignInMode('otp')}
+                      className="w-full text-center text-xs font-semibold text-forest underline disabled:opacity-60"
                     >
-                      LGU Registration
+                      Use Sign-In Link / OTP instead
                     </button>
-                    . Accounts require Provincial Admin approval.
-                  </p>
-                </form>
+                  </form>
+                ) : (
+                  <form
+                    className="space-y-4"
+                    onSubmit={otpSent ? handleVerifyOtp : handleSendOtp}
+                  >
+                    <Field label="Email" required error={emailError}>
+                      <Input
+                        type="email"
+                        autoComplete="email"
+                        value={email}
+                        disabled={busy || otpSent}
+                        onChange={(event) => changeEmail(event.target.value)}
+                        placeholder="name@gmail.com"
+                      />
+                    </Field>
+                    {otpSent ? (
+                      <Field label="6-digit code" required error={otpError}>
+                        <Input
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          value={otpToken}
+                          disabled={busy}
+                          onChange={(event) => {
+                            setOtpToken(event.target.value.replace(/\D/g, ''));
+                            if (otpError) setOtpError(null);
+                          }}
+                          placeholder="123456"
+                        />
+                      </Field>
+                    ) : null}
+                    <Button type="submit" className="w-full" disabled={busy}>
+                      {busy
+                        ? 'Please wait…'
+                        : otpSent
+                          ? 'Verify & Sign In'
+                          : 'Send Sign-In Link / OTP'}
+                    </Button>
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => switchSignInMode('password')}
+                        className="text-xs font-semibold text-forest underline disabled:opacity-60"
+                      >
+                        Use Email &amp; Password instead
+                      </button>
+                      {otpSent ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleSendOtp()}
+                          className="text-xs font-semibold text-slate-500 underline disabled:opacity-60"
+                        >
+                          Resend code
+                        </button>
+                      ) : null}
+                    </div>
+                  </form>
+                )}
+
+                <p className="text-center text-xs text-slate-500">
+                  New LGU staff? Use{' '}
+                  <button
+                    type="button"
+                    className="font-semibold text-forest underline"
+                    disabled={busy}
+                    onClick={() => {
+                      setMode('register');
+                      resetMessages();
+                    }}
+                  >
+                    LGU Registration
+                  </button>
+                  . Accounts require Provincial Admin approval.
+                </p>
               </div>
             ) : (
               <form className="space-y-4" onSubmit={handleRegister}>
@@ -305,34 +498,65 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
                   by the Governor / Provincial IT Admin.
                 </p>
 
-                <Field label="Full name" required>
+                <Field label="Full name" required error={nameError}>
                   <Input
-                    required
                     value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setFullName(event.target.value);
+                      if (nameError) setNameError(null);
+                    }}
                     placeholder="Juan Dela Cruz"
                   />
                 </Field>
 
-                <Field label="Official email" required>
+                <Field label="Official email" required error={emailError}>
                   <Input
                     type="email"
                     autoComplete="email"
-                    required
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="coordinator@rizal.gov.ph"
+                    disabled={busy}
+                    onChange={(event) => changeEmail(event.target.value)}
+                    placeholder="name@gmail.com"
                   />
                 </Field>
 
-                <Field label="Password" required hint="Minimum 6 characters.">
+                <Field label="Password" required error={passwordError}>
                   <Input
                     type="password"
                     autoComplete="new-password"
-                    required
-                    minLength={6}
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      if (passwordError || event.target.value) {
+                        setPasswordError(validatePassword(event.target.value));
+                      }
+                      if (confirmPassword) {
+                        setConfirmError(
+                          validateConfirmPassword(event.target.value, confirmPassword),
+                        );
+                      }
+                    }}
+                    placeholder="••••••••"
+                  />
+                  <PasswordChecklist password={password} />
+                </Field>
+
+                <Field label="Confirm Password" required error={confirmError}>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setConfirmPassword(event.target.value);
+                      if (confirmError || event.target.value) {
+                        setConfirmError(
+                          validateConfirmPassword(password, event.target.value),
+                        );
+                      }
+                    }}
                     placeholder="••••••••"
                   />
                 </Field>
@@ -340,6 +564,7 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
                 <Field label="LGU role" required>
                   <Select
                     value={roleTier}
+                    disabled={busy}
                     onChange={(event) => {
                       setRoleTier(Number(event.target.value));
                       setBarangayId('');
@@ -358,6 +583,7 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
                     <Select
                       required
                       value={municipalityId}
+                      disabled={busy}
                       onChange={(event) => {
                         setMunicipalityId(event.target.value);
                         setBarangayId('');
@@ -379,7 +605,7 @@ export default function LoginPage({ municipalities, barangays }: LoginPageProps)
                   >
                     <Select
                       value={barangayId}
-                      disabled={!municipalityId}
+                      disabled={!municipalityId || busy}
                       onChange={(event) => setBarangayId(event.target.value)}
                     >
                       <option value="">Select barangay</option>

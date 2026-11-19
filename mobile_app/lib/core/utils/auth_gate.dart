@@ -14,7 +14,31 @@ Future<bool> requireSignIn(
   WidgetRef ref, {
   required String action,
 }) async {
-  final user = ref.read(authServiceProvider).currentUser;
+  final auth = ref.read(authServiceProvider);
+
+  // An unconfirmed email/password account may still have a live session.
+  // Kill it and show the exact verification copy before any write can happen.
+  final verification = auth.unverifiedEmailMessage;
+  if (verification != null) {
+    await auth.signOutUnconfirmedEmailSession();
+    if (!context.mounted) return false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Verify your email'),
+        content: Text(verification),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return false;
+  }
+
+  final user = ref.read(verifiedAuthUserProvider);
   if (user != null) return true;
 
   final shouldSignIn = await showDialog<bool>(

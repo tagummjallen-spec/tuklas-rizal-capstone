@@ -27,6 +27,8 @@ function statusTone(status: InquiryStatus): 'gold' | 'blue' | 'green' {
   return 'gold';
 }
 
+const REPLY_MAX = 1000;
+
 export default function InquiriesPage({ profile, lookups }: InquiriesPageProps) {
   const provincial = isProvincial(profile);
   const scope = municipalityScope(profile);
@@ -49,21 +51,26 @@ export default function InquiriesPage({ profile, lookups }: InquiriesPageProps) 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: loadError } = await supabase
-      .from('coordinator_inquiries')
-      .select('*')
-      .match(filters)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error: loadError } = await supabase
+        .from('coordinator_inquiries')
+        .select('*')
+        .match(filters)
+        .order('created_at', { ascending: false });
 
-    if (loadError) setError(describeError(loadError));
-    const records = (data ?? []) as CoordinatorInquiry[];
-    setInquiries(records);
-    setReplies(
-      Object.fromEntries(
-        records.map((inquiry) => [inquiry.id, inquiry.coordinator_reply ?? '']),
-      ),
-    );
-    setLoading(false);
+      if (loadError) setError(describeError(loadError));
+      const records = (data ?? []) as CoordinatorInquiry[];
+      setInquiries(records);
+      setReplies(
+        Object.fromEntries(
+          records.map((inquiry) => [inquiry.id, inquiry.coordinator_reply ?? '']),
+        ),
+      );
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setLoading(false);
+    }
   }, [filters]);
 
   useEffect(() => {
@@ -87,24 +94,49 @@ export default function InquiriesPage({ profile, lookups }: InquiriesPageProps) 
     setBusyId(inquiry.id);
     setActionError(null);
     setNotice(null);
-    const { error: updateError } = await supabase
-      .from('coordinator_inquiries')
-      .update(changes)
-      .eq('id', inquiry.id);
+    try {
+      const reply = (changes.coordinator_reply ?? '').trim();
+      if (changes.coordinator_reply !== undefined && !reply) {
+        setActionError('Write a reply before saving.');
+        return;
+      }
+      if (reply.length > REPLY_MAX) {
+        setActionError(`Keep the reply under ${REPLY_MAX} characters.`);
+        return;
+      }
 
-    if (updateError) {
-      setActionError(describeError(updateError));
-    } else {
-      setNotice(successMessage);
-      await load();
+      const cleanChanges = {
+        ...changes,
+        ...(changes.coordinator_reply !== undefined
+          ? { coordinator_reply: reply }
+          : {}),
+      };
+      const { error: updateError } = await supabase
+        .from('coordinator_inquiries')
+        .update(cleanChanges)
+        .eq('id', inquiry.id);
+
+      if (updateError) {
+        setActionError(describeError(updateError));
+      } else {
+        setNotice(successMessage);
+        await load();
+      }
+    } catch (caught) {
+      setActionError(describeError(caught));
+    } finally {
+      setBusyId(null);
     }
-    setBusyId(null);
   };
 
   const saveReply = async (inquiry: CoordinatorInquiry) => {
     const reply = (replies[inquiry.id] ?? '').trim();
     if (!reply) {
       setActionError('Write a reply before saving.');
+      return;
+    }
+    if (reply.length > REPLY_MAX) {
+      setActionError(`Keep the reply under ${REPLY_MAX} characters.`);
       return;
     }
     await updateInquiry(
@@ -270,6 +302,7 @@ export default function InquiriesPage({ profile, lookups }: InquiriesPageProps) 
                     <Textarea
                       rows={3}
                       value={replies[inquiry.id] ?? ''}
+                      maxLength={REPLY_MAX}
                       onChange={(event) =>
                         setReplies({ ...replies, [inquiry.id]: event.target.value })
                       }

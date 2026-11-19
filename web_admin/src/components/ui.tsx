@@ -80,12 +80,14 @@ export function Badge({
 export function Field({
   label,
   hint,
+  error,
   required,
   children,
   className = '',
 }: {
   label: string;
   hint?: string;
+  error?: string | null;
   required?: boolean;
   children: ReactNode;
   className?: string;
@@ -97,7 +99,10 @@ export function Field({
         {required ? <span className="ml-1 text-red-500">*</span> : null}
       </span>
       {children}
-      {hint ? <span className="mt-1 block text-xs text-slate-400">{hint}</span> : null}
+      {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
+      {hint && !error ? (
+        <span className="mt-1 block text-xs text-slate-400">{hint}</span>
+      ) : null}
     </label>
   );
 }

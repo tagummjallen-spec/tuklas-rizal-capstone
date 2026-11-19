@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/input_validation.dart';
 import '../../../models/user_profile.dart';
 import '../../../services/auth_service.dart';
 
@@ -31,10 +32,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   bool _busy = false;
   bool _googleBusy = false;
-  bool _passwordMode = false;
+  // Password is the primary/default email sign-in mode.
+  bool _passwordMode = true;
   bool _otpSent = false;
   bool _navigated = false;
   String? _error;
+  String? _emailError;
+  String? _passwordError;
   Timer? _resendTimer;
   int _resendIn = 0;
 
@@ -215,9 +219,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           controller: _emailCtrl,
           keyboardType: TextInputType.emailAddress,
           autocorrect: false,
-          decoration: const InputDecoration(
-            hintText: 'you@example.com',
-            prefixIcon: Icon(Icons.alternate_email, size: 20),
+          enabled: !_busy,
+          onChanged: (value) {
+            if (_emailError != null || value.isNotEmpty) {
+              setState(() => _emailError = validateEmail(value));
+            }
+          },
+          decoration: InputDecoration(
+            hintText: 'name@gmail.com',
+            prefixIcon: const Icon(Icons.alternate_email, size: 20),
+            errorText: _emailError,
           ),
         ),
         if (_passwordMode) ...[
@@ -235,9 +246,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           TextField(
             controller: _passwordCtrl,
             obscureText: true,
-            decoration: const InputDecoration(
+            enabled: !_busy,
+            onChanged: (value) {
+              if (_passwordError != null) {
+                setState(() => _passwordError = null);
+              }
+            },
+            decoration: InputDecoration(
               hintText: 'Your password',
-              prefixIcon: Icon(Icons.lock_outline, size: 20),
+              prefixIcon: const Icon(Icons.lock_outline, size: 20),
+              errorText: _passwordError,
             ),
           ),
         ],
@@ -274,16 +292,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 2),
         TextButton(
-          onPressed: () => setState(() {
-            _passwordMode = !_passwordMode;
-            _error = null;
-          }),
+          onPressed: _busy
+              ? null
+              : () => setState(() {
+                  _passwordMode = !_passwordMode;
+                  _error = null;
+                  _emailError = null;
+                  _passwordError = null;
+                }),
           child: Text(
             _passwordMode
-                ? 'Use a 6-digit email code instead'
-                : 'Use password instead',
+                ? 'Use Sign-In Link / OTP instead'
+                : 'Use Email & Password instead',
             style: const TextStyle(fontSize: 12.5, color: _forest),
           ),
         ),
@@ -412,13 +434,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   // Actions
   // ---------------------------------------------------------------------------
   Future<void> _sendOtp() async {
-    final email = _emailCtrl.text.trim();
-    if (!_looksLikeEmail(email)) {
-      setState(() => _error = 'Enter a valid email address.');
+    if (_busy) return;
+    final emailError = validateEmail(_emailCtrl.text);
+    if (emailError != null) {
+      setState(() => _emailError = emailError);
       return;
     }
+    final email = _emailCtrl.text.trim();
     setState(() {
       _error = null;
+      _emailError = null;
       _busy = true;
     });
     try {
@@ -432,14 +457,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Could not send the code: $e';
+        _error = friendlyAuthError(e);
         _busy = false;
       });
     }
   }
 
   Future<void> _resendOtp() async {
-    setState(() => _busy = true);
+    if (_busy) return;
+    final emailError = validateEmail(_emailCtrl.text);
+    if (emailError != null) {
+      setState(() => _emailError = emailError);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       await ref.read(authServiceProvider).sendLoginOtp(_emailCtrl.text.trim());
       if (!mounted) return;
@@ -448,15 +482,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Could not resend the code: $e';
+        _error = friendlyAuthError(e);
         _busy = false;
       });
     }
   }
 
   Future<void> _verifyOtp() async {
+    if (_busy) return;
     final code = _otpCtrl.text.trim();
-    if (code.length != 6) {
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
       setState(() => _error = 'Enter the 6-digit code from your email.');
       return;
     }
@@ -472,15 +507,29 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = friendlyAuthError(e);
         _busy = false;
       });
     }
   }
 
   Future<void> _signIn() async {
+    if (_busy) return;
+    final emailError = validateEmail(_emailCtrl.text);
+    final passwordError = _passwordCtrl.text.isEmpty
+        ? 'Password is required'
+        : null;
+    if (emailError != null || passwordError != null) {
+      setState(() {
+        _emailError = emailError;
+        _passwordError = passwordError;
+      });
+      return;
+    }
     setState(() {
       _error = null;
+      _emailError = null;
+      _passwordError = null;
       _busy = true;
     });
     try {
@@ -491,13 +540,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Sign in failed: $e';
+        _error = friendlyAuthError(e);
         _busy = false;
       });
     }
   }
 
   Future<void> _googleSignIn() async {
+    if (_busy || _googleBusy) return;
     setState(() {
       _googleBusy = true;
       _error = null;
@@ -569,10 +619,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
   }
 
-  static bool _looksLikeEmail(String value) {
-    final at = value.indexOf('@');
-    return at > 0 && value.indexOf('.', at) > at + 1;
-  }
 }
 
 /// Small four-colour "G" mark used on the Google button.

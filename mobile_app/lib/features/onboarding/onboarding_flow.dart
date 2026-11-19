@@ -35,6 +35,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
   int _currentPage = 0;
   bool _autoAdvanceScheduled = false;
+  bool _busy = false;
   final List<bool> _selected = List.filled(8, false);
 
   static const List<_OnboardingInterest> _interests = <_OnboardingInterest>[
@@ -88,34 +89,70 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   bool get _hasSelection => _selected.contains(true);
 
   Future<void> _continue() async {
+    if (_busy) return;
+    setState(() => _busy = true);
     final onboard = ref.read(onboardingControllerProvider);
     final chosen = <String>[];
     for (var i = 0; i < _interests.length; i++) {
       if (_selected[i]) chosen.add(_interests[i].categorySlug);
     }
-    await onboard.setInterests(chosen);
-    if (!mounted) return;
-    _pageController.nextPage(
-        duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
+    try {
+      await onboard.setInterests(chosen);
+      if (!mounted) return;
+      _pageController.nextPage(
+          duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save your interests. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _finish() async {
+    if (_busy) return;
+    setState(() => _busy = true);
     final onboard = ref.read(onboardingControllerProvider);
-    // Persist the one-time flag before leaving so the welcome flow never shows
-    // again on this device.
-    await onboard.complete();
+    try {
+      // Persist the one-time flag before leaving so the welcome flow never shows
+      // again on this device.
+      await onboard.complete();
+      if (!mounted) return;
 
-    // Signed-in users also get the same interests in `public.user_interests` so
-    // recommendations follow them across devices.
-    final user = ref.read(authServiceProvider).currentUser;
-    if (user != null && onboard.hasInterests) {
-      try {
-        await ref
-            .read(authServiceProvider)
-            .setUserInterests(user.id, onboard.interests);
-      } catch (_) {
-        // Local persistence already succeeded; never block the exit on sync.
+      // Signed-in users also get the same interests in `public.user_interests`
+      // so recommendations follow them across devices.
+      final user = ref.read(authServiceProvider).currentUser;
+      if (user != null && onboard.hasInterests) {
+        try {
+          await ref
+              .read(authServiceProvider)
+              .setUserInterests(user.id, onboard.interests);
+        } catch (_) {
+          if (!mounted) return;
+          // Local persistence already succeeded; never block the exit on sync.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Interests were saved on this device but could not be synced '
+                'to your account.',
+              ),
+            ),
+          );
+        }
       }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not finish setup. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -187,7 +224,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       headline: 'What are you interested in?',
       subhead: null,
       buttonLabel: 'Continue',
-      buttonEnabled: _hasSelection,
+      buttonEnabled: _hasSelection && !_busy,
       onButton: _continue,
       middle: _buildInterestChips(),
     );
@@ -241,6 +278,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
               label: 'Explore Events',
               background: _darkGreen,
               foreground: Colors.white,
+              enabled: !_busy,
               onPressed: _finish,
             ),
           ],

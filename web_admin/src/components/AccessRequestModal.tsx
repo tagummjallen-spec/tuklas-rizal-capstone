@@ -61,14 +61,24 @@ export function AccessRequestModal({
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
+    setError(null);
     const next = [...files];
     for (const file of Array.from(list)) {
+      if (file.size === 0) {
+        setError(`${file.name} is empty. Choose a different file.`);
+        continue;
+      }
       if (file.size > MAX_VERIFICATION_BYTES) {
         setError(`${file.name} is larger than 10 MB.`);
         continue;
       }
       if (!/\.(jpe?g|png|webp|pdf)$/i.test(file.name)) {
         setError(`${file.name} must be a JPG, PNG, WEBP or PDF.`);
+        continue;
+      }
+      const allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', ''];
+      if (file.type && !allowedMime.includes(file.type)) {
+        setError(`${file.name} has an unsupported file type.`);
         continue;
       }
       if (next.length >= 3) {
@@ -83,6 +93,7 @@ export function AccessRequestModal({
   };
 
   const submit = async () => {
+    if (busy) return;
     setError(null);
     if (fullName.trim().split(/\s+/).length < 2) {
       setError('Enter your full legal name (first and last name).');
@@ -100,7 +111,10 @@ export function AccessRequestModal({
       setError('Enter your official position or designation.');
       return;
     }
-    if (contact.replace(/\D/g, '').length < 7) {
+    if (
+      !/^[0-9+\-()\s]{7,20}$/.test(contact.trim()) ||
+      contact.replace(/\D/g, '').length < 7
+    ) {
       setError('Enter a reachable government / LGU contact number.');
       return;
     }

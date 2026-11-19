@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -94,25 +96,56 @@ List<AppNotification> buildEventNotifications(List<EventItem> events) {
 }
 
 /// Persists which notification ids the user has already opened.
+///
+/// Read state is namespaced per account (`notifications_<userId>` /
+/// `notifications_guest`), so a first-time guest or a different account never
+/// inherits someone else's read/unread history. Signing out clears the guest
+/// namespace back to a fresh empty state.
 class NotificationsController extends ChangeNotifier {
-  static const String _key = 'tuklas_notifications_read_v1';
+  static const String _prefix = 'notifications';
+  static const String guestScope = 'guest';
 
   final Set<String> _read = {};
+  String _scope = guestScope;
   bool _loaded = false;
 
   bool get isLoaded => _loaded;
+  String get scope => _scope;
+  String get _key => '${_prefix}_$_scope';
 
-  Future<void> load() async {
+  /// Loads the read-state for [userId] (or the guest namespace when null).
+  Future<void> loadForUser(String? userId) async {
+    final next = (userId == null || userId.trim().isEmpty)
+        ? guestScope
+        : userId.trim();
+    if (_scope == next && _loaded) return;
+
+    _scope = next;
+    _read.clear();
     try {
       final prefs = await SharedPreferences.getInstance();
-      _read
-        ..clear()
-        ..addAll(prefs.getStringList(_key) ?? const <String>[]);
+      _read.addAll(prefs.getStringList(_key) ?? const <String>[]);
     } catch (_) {
       // Storage unavailable: unread state lives for this session only.
     }
     _loaded = true;
     notifyListeners();
+  }
+
+  /// Clears the guest namespace so a freshly signed-out (or first-time) guest
+  /// starts with a clean inbox state.
+  Future<void> clearGuestState() async {
+    _scope = guestScope;
+    final hadState = _read.isNotEmpty;
+    _read.clear();
+    _loaded = true;
+    if (hadState) notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('${_prefix}_$guestScope');
+    } catch (_) {
+      // Best effort — memory is already empty.
+    }
   }
 
   bool isRead(String id) => _read.contains(id);
@@ -164,7 +197,23 @@ final allApprovedEventsProvider = StreamProvider<List<EventItem>>((ref) {
 final notificationsControllerProvider =
     ChangeNotifierProvider<NotificationsController>((ref) {
       final controller = NotificationsController();
-      controller.load();
+      final initial =
+          ref.read(authStateProvider).valueOrNull ??
+          ref.read(authServiceProvider).currentUser;
+      unawaited(controller.loadForUser(initial?.id));
+
+      // Keep read state scoped to whoever is signed in. On sign-out the guest
+      // namespace is reset, so the bell badge starts clean.
+      ref.listen(authStateProvider, (previous, next) {
+        final previousId = previous?.valueOrNull?.id;
+        final nextId = next.valueOrNull?.id;
+        if (previousId == nextId) return;
+        if (nextId == null) {
+          unawaited(controller.clearGuestState());
+        } else {
+          unawaited(controller.loadForUser(nextId));
+        }
+      });
       return controller;
     });
 

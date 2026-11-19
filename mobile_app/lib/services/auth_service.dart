@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/constants/app_constants.dart';
+import '../core/utils/input_validation.dart';
 import '../models/user_profile.dart';
 
 /// Interface for authentication — mockable for offline UI testing.
@@ -77,6 +79,15 @@ abstract class AuthService {
 
   /// Whether the last signUp requires email confirmation before signIn.
   bool get emailConfirmationRequired;
+
+  /// The exact verification message when the active session belongs to an
+  /// unconfirmed email/password account; null for guests, verified email
+  /// accounts and OAuth accounts.
+  String? get unverifiedEmailMessage;
+
+  /// Signs out an unconfirmed email/password session and returns
+  /// [unverifiedEmailMessage]. Returns null when no such session is active.
+  Future<String?> signOutUnconfirmedEmailSession();
 }
 
 /// ---------------------------------------------------------------------------
@@ -111,11 +122,39 @@ class SupabaseAuthService implements AuthService {
   @override
   bool get emailConfirmationRequired => _emailConfirmationRequired;
 
+  /// Email/password accounts must have a confirmed address before they can
+  /// hold a usable session. OAuth (Google) accounts are excluded — their email
+  /// is verified by the provider and `app_metadata.provider` is 'google'.
+  static String? _verificationMessageFor(User? user) {
+    if (user == null) return null;
+    if (user.appMetadata['provider'] != 'email') return null;
+    if (user.emailConfirmedAt != null) return null;
+    return emailVerificationRequiredMessage;
+  }
+
+  @override
+  String? get unverifiedEmailMessage =>
+      _verificationMessageFor(_client.auth.currentUser);
+
+  @override
+  Future<String?> signOutUnconfirmedEmailSession() async {
+    final message = unverifiedEmailMessage;
+    if (message == null) return null;
+    await _client.auth.signOut();
+    return message;
+  }
+
   @override
   Stream<UserProfile?> get authStateChanges =>
       _client.auth.onAuthStateChange.asyncMap((data) async {
         final user = data.session?.user;
         if (user == null) return null;
+        // Any session for an unconfirmed email account is invalid: kill it
+        // before a profile can be created or cached anywhere in the app.
+        if (_verificationMessageFor(user) != null) {
+          await _client.auth.signOut();
+          return null;
+        }
         final existing = await _fetchProfile(user.id);
         if (existing != null) return existing;
         // First sign-in (usually Google OAuth): create the public.users row.
@@ -188,6 +227,12 @@ class SupabaseAuthService implements AuthService {
         password: password,
       );
       if (response.user == null) throw Exception('Login failed');
+      final verification = _verificationMessageFor(response.user);
+      if (verification != null) {
+        // Never leave a usable session behind for an unverified address.
+        await _client.auth.signOut();
+        throw Exception(verification);
+      }
       final profile = await _fetchProfile(response.user!.id);
       if (profile == null) {
         throw Exception(
@@ -229,6 +274,7 @@ class SupabaseAuthService implements AuthService {
     final response = await _client.auth.signUp(
       email: email,
       password: password,
+      emailRedirectTo: AppConstants.oauthRedirectUrl,
       data: {
         'full_name': fullName,
         'role_tier': roleTier,
@@ -244,7 +290,9 @@ class SupabaseAuthService implements AuthService {
     // - ENABLED: the user exists but has no session yet, so the profile row
     //   cannot be written under RLS until they confirm and sign in.
     // - DISABLED: a session exists and the profile is written immediately.
-    if (!hasSession && authUser.emailConfirmedAt == null) {
+    // A missing session always means sign-in is gated behind confirmation.
+    // Never fall through to the dashboard on an unconfirmed signup.
+    if (!hasSession) {
       _emailConfirmationRequired = true;
     }
 
@@ -291,9 +339,7 @@ class SupabaseAuthService implements AuthService {
     // Mobile: the registered deep link that returns to the app.
     // Google on mobile must open in an external browser so the deep link can
     // return to the app; on web stay in this tab for the code exchange.
-    final redirectTo = kIsWeb
-        ? '${Uri.base.origin}/'
-        : 'io.supabase.tuklasrizal://login-callback';
+    final redirectTo = AppConstants.oauthRedirectUrl;
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: redirectTo,
@@ -361,14 +407,20 @@ class SupabaseAuthService implements AuthService {
 
   @override
   Future<void> resendSignupOtp(String email) async {
-    await _client.auth.resend(type: OtpType.signup, email: email.trim());
+    await _client.auth.resend(
+      type: OtpType.signup,
+      email: email.trim(),
+      emailRedirectTo: AppConstants.oauthRedirectUrl,
+    );
   }
 
   @override
   Future<void> sendLoginOtp(String email) async {
     await _client.auth.signInWithOtp(
       email: email.trim(),
+      // Never create a half-baked auth user for an unregistered email.
       shouldCreateUser: false,
+      emailRedirectTo: AppConstants.oauthRedirectUrl,
     );
   }
 
@@ -623,6 +675,13 @@ class MockAuthService implements AuthService {
   @override
   bool get emailConfirmationRequired => false;
 
+  // Demo mode never has a real Supabase session, so there is nothing to verify.
+  @override
+  String? get unverifiedEmailMessage => null;
+
+  @override
+  Future<String?> signOutUnconfirmedEmailSession() async => null;
+
   @override
   Stream<UserProfile?> get authStateChanges => _controller.stream;
 
@@ -752,30 +811,4 @@ class MockAuthService implements AuthService {
 /// Converts raw Supabase / platform auth errors into a short, user-friendly
 /// sentence suitable for a SnackBar. Used by both Google OAuth and email/OTP
 /// screens so cancelled popups and offline errors never surface as stack traces.
-String friendlyAuthMessage(Object error) {
-  final text = error.toString().toLowerCase();
-  if (text.contains('cancel') ||
-      text.contains('popup') ||
-      text.contains('closed') ||
-      text.contains('aborted')) {
-    return 'Google sign-in was cancelled. Please try again.';
-  }
-  if (text.contains('network') ||
-      text.contains('socket') ||
-      text.contains('connection') ||
-      text.contains('timed out') ||
-      text.contains('failed to host')) {
-    return 'A network problem interrupted sign-in. Check your connection and try again.';
-  }
-  if (text.contains('not confirmed') || text.contains('confirmation')) {
-    return 'Please confirm your email address before signing in.';
-  }
-  if (text.contains('invalid login credentials') ||
-      text.contains('invalid email or password')) {
-    return 'That email or password is incorrect.';
-  }
-  if (error is AuthException && error.message.isNotEmpty) {
-    return error.message;
-  }
-  return 'Sign-in failed. Please try again.';
-}
+String friendlyAuthMessage(Object error) => friendlyAuthError(error);

@@ -17,7 +17,11 @@ import {
 } from '../components/ui';
 import { describeError, supabase } from '../lib/supabase';
 import { canManagePois, isProvincial, municipalityScope } from '../lib/rbac';
-import { numOrNull, titleCase } from '../lib/format';
+import { titleCase } from '../lib/format';
+import {
+  validateRizalCoordinates,
+  validateUrl,
+} from '../lib/validation';
 import type { Lookups } from '../hooks/useLookups';
 import { POI_TYPES } from '../types';
 import type { PoiRecord, UserProfile } from '../types';
@@ -79,6 +83,14 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const fail = (field: keyof PoiFormState | 'coordinates', message: string) => {
+    setFieldErrors({ [field]: message });
+    setFormError(message);
+  };
 
   const filters = useMemo(() => {
     const value: Record<string, string> = {};
@@ -89,15 +101,20 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: loadError } = await supabase
-      .from('pois_logistics')
-      .select('*')
-      .match(filters)
-      .order('name', { ascending: true });
+    try {
+      const { data, error: loadError } = await supabase
+        .from('pois_logistics')
+        .select('*')
+        .match(filters)
+        .order('name', { ascending: true });
 
-    if (loadError) setError(describeError(loadError));
-    setPois((data ?? []) as PoiRecord[]);
-    setLoading(false);
+      if (loadError) setError(describeError(loadError));
+      setPois((data ?? []) as PoiRecord[]);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setLoading(false);
+    }
   }, [filters]);
 
   useEffect(() => {
@@ -122,6 +139,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
   const openCreate = () => {
     setForm(buildEmptyForm(profile, lookups));
     setFormError(null);
+    setFieldErrors({});
     setOpen(true);
   };
 
@@ -143,13 +161,48 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
       is_promoted: poi.is_promoted,
     });
     setFormError(null);
+    setFieldErrors({});
     setOpen(true);
   };
 
   const save = async () => {
     setFormError(null);
-    if (!form.name.trim()) return setFormError('POI name is required.');
-    if (!form.municipality_id) return setFormError('Select a municipality.');
+    setFieldErrors({});
+    setActionError(null);
+    setActionSuccess(null);
+
+    if (!form.name.trim()) return fail('name', 'POI name is required.');
+    if (!form.municipality_id) return fail('municipality_id', 'Select a municipality.');
+    if (!form.poi_type) return fail('poi_type', 'Select a POI type.');
+
+    const feeRaw = form.entrance_fee.trim();
+    let entranceFee: string | null = null;
+    if (feeRaw !== '') {
+      const fee = Number(feeRaw);
+      if (!Number.isFinite(fee) || fee < 0) {
+        return fail(
+          'entrance_fee',
+          'Entrance fee must be a non-negative number (or leave blank).',
+        );
+      }
+      entranceFee = feeRaw;
+    }
+
+    const latRaw = form.latitude.trim();
+    const lngRaw = form.longitude.trim();
+    const latitude = latRaw === '' ? null : Number(latRaw);
+    const longitude = lngRaw === '' ? null : Number(lngRaw);
+    if (latRaw !== '' && !Number.isFinite(latitude)) {
+      return fail('latitude', 'Latitude must be a valid number.');
+    }
+    if (lngRaw !== '' && !Number.isFinite(longitude)) {
+      return fail('longitude', 'Longitude must be a valid number.');
+    }
+    const coordsError = validateRizalCoordinates(latitude, longitude);
+    if (coordsError) return fail('coordinates', coordsError);
+
+    const urlError = validateUrl(form.image_url);
+    if (urlError) return fail('image_url', urlError);
 
     const payload = {
       municipality_id: form.municipality_id,
@@ -157,51 +210,85 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
       category_id: form.category_id || null,
       name: form.name.trim(),
       description: form.description.trim() || null,
-      poi_type: form.poi_type || null,
+      poi_type: form.poi_type,
       how_to_get_there: form.how_to_get_there.trim() || null,
       operating_hours: form.operating_hours.trim() || null,
-      entrance_fee: form.entrance_fee.trim() || null,
-      latitude: numOrNull(form.latitude),
-      longitude: numOrNull(form.longitude),
+      entrance_fee: entranceFee,
+      latitude,
+      longitude,
       image_url: form.image_url || null,
       is_promoted: form.is_promoted,
     };
 
     setSaving(true);
-    const { error: saveError } = form.id
-      ? await supabase.from('pois_logistics').update(payload).eq('id', form.id)
-      : await supabase.from('pois_logistics').insert(payload);
+    try {
+      const { error: saveError } = form.id
+        ? await supabase.from('pois_logistics').update(payload).eq('id', form.id)
+        : await supabase.from('pois_logistics').insert(payload);
 
-    if (saveError) {
-      setFormError(describeError(saveError));
-    } else {
+      if (saveError) {
+        setFormError(describeError(saveError));
+        return;
+      }
       setOpen(false);
+      setActionSuccess(form.id ? 'POI updated successfully.' : 'POI created successfully.');
       await load();
+    } catch (caught) {
+      setFormError(describeError(caught));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const remove = async (poi: PoiRecord) => {
     if (!canManage) return;
     if (!window.confirm(`Delete “${poi.name}” from tourism logistics?`)) return;
     setActionError(null);
-    const { error: deleteError } = await supabase
-      .from('pois_logistics')
-      .delete()
-      .eq('id', poi.id);
-    if (deleteError) setActionError(describeError(deleteError));
-    await load();
+    setActionSuccess(null);
+    setBusy(true);
+    try {
+      const { error: deleteError } = await supabase
+        .from('pois_logistics')
+        .delete()
+        .eq('id', poi.id);
+      if (deleteError) {
+        setActionError(describeError(deleteError));
+        return;
+      }
+      setActionSuccess('POI deleted successfully.');
+      await load();
+    } catch (caught) {
+      setActionError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const togglePromoted = async (poi: PoiRecord) => {
     if (!canManage) return;
     setActionError(null);
-    const { error: updateError } = await supabase
-      .from('pois_logistics')
-      .update({ is_promoted: !poi.is_promoted })
-      .eq('id', poi.id);
-    if (updateError) setActionError(describeError(updateError));
-    await load();
+    setActionSuccess(null);
+    setBusy(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('pois_logistics')
+        .update({ is_promoted: !poi.is_promoted })
+        .eq('id', poi.id);
+      if (updateError) {
+        setActionError(describeError(updateError));
+        return;
+      }
+      setActionSuccess(
+        poi.is_promoted
+          ? 'POI removed from promoted successfully.'
+          : 'POI promoted successfully.',
+      );
+      await load();
+    } catch (caught) {
+      setActionError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -230,6 +317,11 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
       {actionError ? (
         <div className="mb-4">
           <Alert tone="error">{actionError}</Alert>
+        </div>
+      ) : null}
+      {actionSuccess ? (
+        <div className="mb-4">
+          <Alert tone="success">{actionSuccess}</Alert>
         </div>
       ) : null}
       {error ? (
@@ -333,6 +425,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
                             <Button
                               variant="ghost"
                               className="px-2 py-1 text-xs"
+                              disabled={busy}
                               onClick={() => openEdit(poi)}
                             >
                               <Icon name="edit" className="h-3.5 w-3.5" />
@@ -341,6 +434,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
                             <Button
                               variant="ghost"
                               className="px-2 py-1 text-xs"
+                              disabled={busy}
                               onClick={() => void togglePromoted(poi)}
                             >
                               {poi.is_promoted ? 'Unpromote' : 'Promote'}
@@ -348,6 +442,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
                             <Button
                               variant="danger"
                               className="px-2 py-1 text-xs"
+                              disabled={busy}
                               onClick={() => void remove(poi)}
                             >
                               <Icon name="close" className="h-3.5 w-3.5" />
@@ -386,7 +481,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
         <div className="space-y-4">
           {formError ? <Alert tone="error">{formError}</Alert> : null}
 
-          <Field label="Name" required>
+          <Field label="Name" required error={fieldErrors.name}>
             <Input
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
@@ -413,7 +508,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="POI type" required>
+            <Field label="POI type" required error={fieldErrors.poi_type}>
               <Select
                 value={form.poi_type}
                 onChange={(event) => setForm({ ...form, poi_type: event.target.value })}
@@ -442,7 +537,7 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
               </Select>
             </Field>
 
-            <Field label="Municipality" required>
+            <Field label="Municipality" required error={fieldErrors.municipality_id}>
               <Select
                 value={form.municipality_id}
                 disabled={!provincial}
@@ -489,17 +584,25 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
               />
             </Field>
 
-            <Field label="Entrance fee">
+            <Field
+              label="Entrance fee"
+              hint="Enter a non-negative number, or leave blank."
+              error={fieldErrors.entrance_fee}
+            >
               <Input
                 value={form.entrance_fee}
                 onChange={(event) =>
                   setForm({ ...form, entrance_fee: event.target.value })
                 }
-                placeholder="Free or PHP 50"
+                placeholder="e.g. 50"
               />
             </Field>
 
-            <Field label="Latitude" hint="Optional">
+            <Field
+              label="Latitude"
+              hint="Optional"
+              error={fieldErrors.latitude ?? fieldErrors.coordinates}
+            >
               <Input
                 inputMode="decimal"
                 value={form.latitude}
@@ -509,7 +612,11 @@ export default function PoisPage({ profile, lookups }: PoisPageProps) {
               />
             </Field>
 
-            <Field label="Longitude" hint="Optional">
+            <Field
+              label="Longitude"
+              hint="Optional"
+              error={fieldErrors.longitude ?? fieldErrors.coordinates}
+            >
               <Input
                 inputMode="decimal"
                 value={form.longitude}

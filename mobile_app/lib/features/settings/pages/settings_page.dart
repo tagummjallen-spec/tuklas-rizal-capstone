@@ -13,7 +13,7 @@ import '../location_consent.dart';
 /// Accessibility (text size, high contrast) is persisted through
 /// [AppSettingsController] and applied app-wide in `main.dart`. Notification,
 /// recommendation, account and support actions are all wired.
-class SettingsPage extends ConsumerWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   static const Color _forest = Color(0xFF033300);
@@ -22,7 +22,21 @@ class SettingsPage extends ConsumerWidget {
   static const Color _cream = Color(0xFFF7F6F2);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  // Referencing the page's palette keeps every existing `const` color use valid.
+  static const Color _forest = SettingsPage._forest;
+  static const Color _forestDeep = SettingsPage._forestDeep;
+  static const Color _gold = SettingsPage._gold;
+  static const Color _cream = SettingsPage._cream;
+
+  bool _locationBusy = false;
+  bool _replayBusy = false;
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
     final user = ref.watch(authStateProvider).valueOrNull;
     final locationConsent = ref.watch(locationConsentProvider);
@@ -367,42 +381,78 @@ class SettingsPage extends ConsumerWidget {
                         'heritage banners · RA 10173',
                         style: TextStyle(fontSize: 12),
                       ),
-                      onChanged: (enabled) async {
+                      onChanged: _locationBusy
+                          ? null
+                          : (enabled) async {
+                        if (_locationBusy) return;
+                        setState(() => _locationBusy = true);
                         final geofence = ref.read(geofenceServiceProvider);
-                        if (!enabled) {
-                          await locationConsent.setEnabled(false);
-                          geofence.stopMonitoring();
-                          return;
-                        }
-                        final agreed = await showLocationPrivacyDialog(context);
-                        if (!agreed) return;
-                        await locationConsent.acceptNotice();
-                        final granted = await geofence.requestLocationPermission();
-                        if (!context.mounted) return;
-                        if (!granted) {
+                        try {
+                          if (!enabled) {
+                            await locationConsent.setEnabled(false);
+                            geofence.stopMonitoring();
+                            return;
+                          }
+                          final agreed =
+                              await showLocationPrivacyDialog(context);
+                          if (!agreed) return;
+                          await locationConsent.acceptNotice();
+                          final granted =
+                              await geofence.requestLocationPermission();
+                          if (!context.mounted) return;
+                          if (!granted) {
+                            final message =
+                                await geofence.availabilityMessage();
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  message ??
+                                      'Location permission is required for '
+                                          'nearby event alerts.',
+                                ),
+                                backgroundColor: _forest,
+                              ),
+                            );
+                            return;
+                          }
+                          await locationConsent.setEnabled(true);
+                          await geofence.startMonitoring();
+                          if (!context.mounted) return;
+                          final error = geofence.lastError;
+                          if (error != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(error),
+                                backgroundColor: _forest,
+                              ),
+                            );
+                            return;
+                          }
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Location permission was not granted. Enable '
-                                'it in your device settings to receive '
-                                'cultural alerts.',
+                                'Municipal Cultural Alerts are now on.',
                               ),
                               backgroundColor: _forest,
                             ),
                           );
-                          return;
-                        }
-                        await locationConsent.setEnabled(true);
-                        await geofence.startMonitoring();
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Municipal Cultural Alerts are now on.',
+                        } catch (_) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not update location alerts. Please '
+                                'try again.',
+                              ),
+                              backgroundColor: _forest,
                             ),
-                            backgroundColor: _forest,
-                          ),
-                        );
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() => _locationBusy = false);
+                          }
+                        }
                       },
                     ),
                     const Divider(height: 1),
@@ -473,13 +523,41 @@ class SettingsPage extends ConsumerWidget {
                         'Show the four-step welcome flow again',
                         style: TextStyle(fontSize: 12),
                       ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        await ref
-                            .read(onboardingControllerProvider)
-                            .resetOnboarding();
-                        if (context.mounted) context.go('/onboarding');
-                      },
+                      trailing: _replayBusy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.chevron_right),
+                      onTap: _replayBusy
+                          ? null
+                          : () async {
+                              if (_replayBusy) return;
+                              setState(() => _replayBusy = true);
+                              try {
+                                await ref
+                                    .read(onboardingControllerProvider)
+                                    .resetOnboarding();
+                                if (!context.mounted) return;
+                                context.go('/onboarding');
+                              } catch (_) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not restart the welcome guide. '
+                                      'Please try again.',
+                                    ),
+                                    backgroundColor: _forest,
+                                  ),
+                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _replayBusy = false);
+                                }
+                              }
+                            },
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -634,6 +712,7 @@ class _DemoTownEntryPicker extends ConsumerStatefulWidget {
 
 class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
   late String _selectedTownId;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -701,25 +780,65 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () async {
-                  await ref
-                      .read(geofenceServiceProvider)
-                      .simulateEntry(_selectedTownId);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Simulated entry to ${selected?.name ?? 'town'}',
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        if (_busy) return;
+                        setState(() => _busy = true);
+                        try {
+                          final didSimulate = await ref
+                              .read(geofenceServiceProvider)
+                              .simulateEntry(_selectedTownId);
+                          if (!context.mounted) return;
+                          if (!didSimulate) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not simulate that town. Please pick '
+                                  'another.',
+                                ),
+                                backgroundColor: Color(0xFF033300),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Simulated entry to ${selected?.name ?? 'town'}',
+                              ),
+                              backgroundColor: const Color(0xFF033300),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        } catch (_) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not simulate town entry. Please try '
+                                'again.',
+                              ),
+                              backgroundColor: Color(0xFF033300),
+                            ),
+                          );
+                        } finally {
+                          if (mounted) setState(() => _busy = false);
+                        }
+                      },
+                child: _busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Trigger',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                      backgroundColor: const Color(0xFF033300),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Trigger',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                ),
               ),
             ],
           ),

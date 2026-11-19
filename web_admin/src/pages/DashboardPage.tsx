@@ -37,6 +37,9 @@ interface DashboardPageProps {
   onNavigate: (view: ViewKey) => void;
 }
 
+const BROADCAST_TITLE_MAX = 120;
+const BROADCAST_MESSAGE_MAX = 1000;
+
 interface KpiProps {
   label: string;
   value: number | string;
@@ -94,44 +97,48 @@ export default function DashboardPage({
     setLoading(true);
     setError(null);
 
-    const eventsRequest = supabase
-      .from('events')
-      .select('*')
-      .match(filters)
-      .order('created_at', { ascending: false });
-    const poisRequest = supabase.from('pois_logistics').select('*').match(filters);
+    try {
+      const eventsRequest = supabase
+        .from('events')
+        .select('*')
+        .match(filters)
+        .order('created_at', { ascending: false });
+      const poisRequest = supabase.from('pois_logistics').select('*').match(filters);
 
-    const inquiriesRequest = canHandleInquiries(profile)
-      ? supabase
-          .from('coordinator_inquiries')
-          .select('*')
-          .match(filters)
-          .order('created_at', { ascending: false })
-      : Promise.resolve({ data: [] as CoordinatorInquiry[], error: null });
+      const inquiriesRequest = canHandleInquiries(profile)
+        ? supabase
+            .from('coordinator_inquiries')
+            .select('*')
+            .match(filters)
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: [] as CoordinatorInquiry[], error: null });
 
-    const [eventsResult, poisResult, inquiriesResult] = await Promise.all([
-      eventsRequest,
-      poisRequest,
-      inquiriesRequest,
-    ]);
+      const [eventsResult, poisResult, inquiriesResult] = await Promise.all([
+        eventsRequest,
+        poisRequest,
+        inquiriesRequest,
+      ]);
 
-    const firstError =
-      eventsResult.error ?? poisResult.error ?? inquiriesResult.error ?? null;
-    setError(firstError ? describeError(firstError) : null);
-    setEvents((eventsResult.data ?? []) as EventRecord[]);
-    setPois((poisResult.data ?? []) as PoiRecord[]);
-    setInquiries((inquiriesResult.data ?? []) as CoordinatorInquiry[]);
+      const firstError =
+        eventsResult.error ?? poisResult.error ?? inquiriesResult.error ?? null;
+      setError(firstError ? describeError(firstError) : null);
+      setEvents((eventsResult.data ?? []) as EventRecord[]);
+      setPois((poisResult.data ?? []) as PoiRecord[]);
+      setInquiries((inquiriesResult.data ?? []) as CoordinatorInquiry[]);
 
-    if (provincial) {
-      const { count, error: participationError } = await supabase
-        .from('event_participation')
-        .select('*', { count: 'exact', head: true });
-      setRsvpCount(participationError ? null : count ?? 0);
-    } else {
-      setRsvpCount(null);
+      if (provincial) {
+        const { count, error: participationError } = await supabase
+          .from('event_participation')
+          .select('*', { count: 'exact', head: true });
+        setRsvpCount(participationError ? null : count ?? 0);
+      } else {
+        setRsvpCount(null);
+      }
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [filters, profile, provincial]);
 
   useEffect(() => {
@@ -147,22 +154,27 @@ export default function DashboardPage({
     setReviewingId(event.id);
     setReviewError(null);
     setReviewNotice(null);
-    const { error: updateError } = await supabase
-      .from('events')
-      .update({ status })
-      .eq('id', event.id);
+    try {
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({ status })
+        .eq('id', event.id);
 
-    if (updateError) {
-      setReviewError(describeError(updateError));
-    } else {
-      setReviewNotice(
-        status === 'approved'
-          ? `“${event.title}” approved and published to the mobile app.`
-          : `“${event.title}” rejected. The submitting barangay can revise and resubmit.`,
-      );
-      await load();
+      if (updateError) {
+        setReviewError(describeError(updateError));
+      } else {
+        setReviewNotice(
+          status === 'approved'
+            ? `“${event.title}” approved and published to the mobile app.`
+            : `“${event.title}” rejected. The submitting barangay can revise and resubmit.`,
+        );
+        await load();
+      }
+    } catch (caught) {
+      setReviewError(describeError(caught));
+    } finally {
+      setReviewingId(null);
     }
-    setReviewingId(null);
   };
 
   const approvedEvents = events.filter((event) => event.status === 'approved');
@@ -184,52 +196,65 @@ export default function DashboardPage({
     setBroadcastError(null);
     setBroadcastDone(null);
 
-    if (!profile.municipality_id) {
-      setBroadcastError('Your account has no municipality assigned.');
-      return;
+    try {
+      if (!profile.municipality_id) {
+        setBroadcastError('Your account has no municipality assigned.');
+        return;
+      }
+      const title = broadcastTitle.trim();
+      const message = broadcastMessage.trim();
+      if (!title || !message) {
+        setBroadcastError('Add a broadcast title and message.');
+        return;
+      }
+      if (title.length > BROADCAST_TITLE_MAX || message.length > BROADCAST_MESSAGE_MAX) {
+        setBroadcastError(
+          `Keep the title under ${BROADCAST_TITLE_MAX} characters and the message under ${BROADCAST_MESSAGE_MAX} characters.`,
+        );
+        return;
+      }
+
+      setBroadcasting(true);
+      const civicCategory =
+        lookups.categories.find((category) => category.slug === 'civic-community') ??
+        lookups.categories.find((category) => category.slug?.includes('civic'));
+
+      const now = new Date();
+      const end = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      const { error: insertError } = await supabase.from('events').insert({
+        municipality_id: profile.municipality_id,
+        barangay_id: profile.barangay_id,
+        category_id: civicCategory?.id ?? null,
+        title: `Civic Broadcast: ${title}`,
+        description: message,
+        venue_name: broadcastVenue.trim() || null,
+        how_to_get_there: null,
+        start_date: now.toISOString(),
+        end_date: end.toISOString(),
+        latitude: null,
+        longitude: null,
+        status: 'approved',
+        is_featured: true,
+        promotion_weight: 1.2,
+      });
+
+      if (insertError) {
+        setBroadcastError(describeError(insertError));
+      } else {
+        setBroadcastDone(
+          'Civic broadcast published as an approved, featured civic event for your municipality.',
+        );
+        setBroadcastTitle('');
+        setBroadcastMessage('');
+        setBroadcastVenue('');
+        await load();
+      }
+    } catch (caught) {
+      setBroadcastError(describeError(caught));
+    } finally {
+      setBroadcasting(false);
     }
-    if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
-      setBroadcastError('Add a broadcast title and message.');
-      return;
-    }
-
-    setBroadcasting(true);
-    const civicCategory =
-      lookups.categories.find((category) => category.slug === 'civic-community') ??
-      lookups.categories.find((category) => category.slug.includes('civic'));
-
-    const now = new Date();
-    const end = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-    const { error: insertError } = await supabase.from('events').insert({
-      municipality_id: profile.municipality_id,
-      barangay_id: profile.barangay_id,
-      category_id: civicCategory?.id ?? null,
-      title: `Civic Broadcast: ${broadcastTitle.trim()}`,
-      description: broadcastMessage.trim(),
-      venue_name: broadcastVenue.trim() || null,
-      how_to_get_there: null,
-      start_date: now.toISOString(),
-      end_date: end.toISOString(),
-      latitude: null,
-      longitude: null,
-      status: 'approved',
-      is_featured: true,
-      promotion_weight: 1.2,
-    });
-
-    if (insertError) {
-      setBroadcastError(describeError(insertError));
-    } else {
-      setBroadcastDone(
-        'Civic broadcast published as an approved, featured civic event for your municipality.',
-      );
-      setBroadcastTitle('');
-      setBroadcastMessage('');
-      setBroadcastVenue('');
-      await load();
-    }
-    setBroadcasting(false);
   };
 
   return (
@@ -504,17 +529,23 @@ export default function DashboardPage({
         <div className="space-y-4">
           {broadcastError ? <Alert tone="error">{broadcastError}</Alert> : null}
           {broadcastDone ? <Alert tone="success">{broadcastDone}</Alert> : null}
-          <Field label="Broadcast title" required>
+          <Field label="Broadcast title" required hint={`Maximum ${BROADCAST_TITLE_MAX} characters.`}>
             <Input
               value={broadcastTitle}
+              maxLength={BROADCAST_TITLE_MAX}
               onChange={(event) => setBroadcastTitle(event.target.value)}
               placeholder="Road closure for the Higantes parade"
             />
           </Field>
-          <Field label="Message to residents and tourists" required>
+          <Field
+            label="Message to residents and tourists"
+            required
+            hint={`Maximum ${BROADCAST_MESSAGE_MAX} characters.`}
+          >
             <Textarea
               rows={4}
               value={broadcastMessage}
+              maxLength={BROADCAST_MESSAGE_MAX}
               onChange={(event) => setBroadcastMessage(event.target.value)}
               placeholder="Poblacion streets will be closed from 6:00 AM to 12:00 NN…"
             />

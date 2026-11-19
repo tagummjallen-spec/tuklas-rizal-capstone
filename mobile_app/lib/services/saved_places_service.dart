@@ -11,23 +11,48 @@ import '../models/poi_logistics.dart';
 /// Persisted on the device with SharedPreferences so guests keep their saves
 /// too; signed-in users additionally have their event interest synced to
 /// `event_participation` by the card/detail actions.
+///
+/// Storage is namespaced per account (`saved_events_<userId>` /
+/// `saved_events_guest`) so one account never inherits another account's
+/// collection. A brand-new guest therefore always starts with **0 saved
+/// events**, and signing out resets the guest namespace back to empty.
 class SavedPlacesController extends ChangeNotifier {
-  static const String _eventsKey = 'tuklas_saved_events_v1';
-  static const String _poisKey = 'tuklas_saved_pois_v1';
+  static const String _eventsPrefix = 'saved_events';
+  static const String _poisPrefix = 'saved_pois';
+  static const String guestScope = 'guest';
 
   final Map<String, EventItem> _events = {};
   final Map<String, PoiLogistics> _pois = {};
+
+  String _scope = guestScope;
   bool _loaded = false;
 
   bool get isLoaded => _loaded;
+  String get scope => _scope;
   List<EventItem> get savedEvents => _events.values.toList(growable: false);
   List<PoiLogistics> get savedPois => _pois.values.toList(growable: false);
   int get totalCount => _events.length + _pois.length;
 
+  String get _eventsKey => '${_eventsPrefix}_$_scope';
+  String get _poisKey => '${_poisPrefix}_$_scope';
+
   bool isEventSaved(String id) => _events.containsKey(id);
   bool isPoiSaved(String id) => _pois.containsKey(id);
 
-  Future<void> load() async {
+  /// Loads the collection for [userId] (or the guest namespace when null/empty).
+  ///
+  /// Switching accounts clears the in-memory view first, so a signed-in user
+  /// never briefly sees the previous account's (or the guest's) bookmarks.
+  Future<void> loadForUser(String? userId) async {
+    final next = (userId == null || userId.trim().isEmpty)
+        ? guestScope
+        : userId.trim();
+    if (_scope == next && _loaded) return;
+
+    _scope = next;
+    _events.clear();
+    _pois.clear();
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final rawEvents = prefs.getStringList(_eventsKey) ?? const [];
@@ -53,8 +78,28 @@ class SavedPlacesController extends ChangeNotifier {
     } catch (_) {
       // Storage unavailable (e.g. restricted browser): keep in-memory saves.
     }
+
     _loaded = true;
     notifyListeners();
+  }
+
+  /// Clears the guest namespace so a freshly signed-out (or first-time) guest
+  /// always starts from an empty collection.
+  Future<void> clearGuestState() async {
+    _scope = guestScope;
+    final hadItems = _events.isNotEmpty || _pois.isNotEmpty;
+    _events.clear();
+    _pois.clear();
+    _loaded = true;
+    if (hadItems) notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('${_eventsPrefix}_$guestScope');
+      await prefs.remove('${_poisPrefix}_$guestScope');
+    } catch (_) {
+      // Best effort — memory is already empty.
+    }
   }
 
   /// Returns true when the event is now saved.

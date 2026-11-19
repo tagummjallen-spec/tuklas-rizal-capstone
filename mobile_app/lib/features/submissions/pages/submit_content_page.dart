@@ -150,6 +150,7 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
           TextField(
             controller: _descriptionCtrl,
             maxLines: 3,
+            maxLength: 1000,
             decoration: const InputDecoration(
               labelText: 'Description',
               alignLabelWithHint: true,
@@ -178,6 +179,7 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
           const SizedBox(height: 12),
           TextField(
             controller: _venueCtrl,
+            maxLength: 120,
             decoration: InputDecoration(
               labelText: _isEvent ? 'Venue' : 'Address',
             ),
@@ -264,8 +266,19 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
         maxWidth: 1800,
         imageQuality: 85,
       );
-      if (picked == null) return;
+      if (!mounted || picked == null) return;
+      final ext = picked.name.split('.').last.toLowerCase();
+      final mime = (picked.mimeType ?? '').toLowerCase();
+      const allowedExts = {'jpg', 'jpeg', 'png', 'webp'};
+      const allowedMimes = {'image/jpeg', 'image/png', 'image/webp'};
+      if (!allowedExts.contains(ext) ||
+          (mime.isNotEmpty && !allowedMimes.contains(mime))) {
+        setState(() =>
+            _error = 'Only JPEG, PNG or WebP images are supported.');
+        return;
+      }
       final bytes = await picked.readAsBytes();
+      if (!mounted) return;
       if (bytes.length > 5 * 1024 * 1024) {
         setState(() => _error = 'Images must be 5 MB or smaller.');
         return;
@@ -275,8 +288,9 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
         _photoName = picked.name;
         _error = null;
       });
-    } catch (e) {
-      setState(() => _error = 'Could not open the gallery: $e');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not open the gallery. Please try again.');
     }
   }
 
@@ -287,20 +301,30 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
       firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 730)),
     );
-    if (picked == null) return;
-    setState(() {
-      if (isStart) {
+    if (!mounted || picked == null) return;
+    if (isStart) {
+      setState(() {
         _start = picked;
         if (_end.isBefore(_start)) {
           _end = picked.add(const Duration(days: 1));
         }
-      } else {
-        _end = picked;
-      }
+        _error = null;
+      });
+      return;
+    }
+    if (picked.isBefore(_start)) {
+      setState(() =>
+          _error = 'The end date cannot be earlier than the start date.');
+      return;
+    }
+    setState(() {
+      _end = picked;
+      _error = null;
     });
   }
 
   Future<void> _submit() async {
+    if (_saving) return;
     final signedIn = await requireSignIn(
       context,
       ref,
@@ -315,8 +339,25 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
           : 'Add the place name.');
       return;
     }
-    if (_municipalityId == null) {
+    if (_municipalityId == null || _municipalityId!.isEmpty) {
       setState(() => _error = 'Select the municipality.');
+      return;
+    }
+    if (_categoryId == null || _categoryId!.isEmpty) {
+      setState(() => _error = 'Please select a category.');
+      return;
+    }
+    if (_descriptionCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Add a description.');
+      return;
+    }
+    if (_venueCtrl.text.trim().isEmpty) {
+      setState(() => _error = _isEvent ? 'Add a venue.' : 'Add an address.');
+      return;
+    }
+    if (_isEvent && _end.isBefore(_start)) {
+      setState(() =>
+          _error = 'The end date cannot be earlier than the start date.');
       return;
     }
 
@@ -327,15 +368,22 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
 
     try {
       String? imageUrl;
-      if (_photoBytes != null) {
+      if (AppConstants.isSupabaseConfigured && _photoBytes != null) {
         imageUrl = await ref.read(storageServiceProvider).uploadTourismImage(
               bytes: _photoBytes!,
               fileName: _photoName ?? 'photo.jpg',
               folder: _isEvent ? 'events' : 'pois',
             );
+        if (!mounted) return;
       }
 
       if (AppConstants.isSupabaseConfigured) {
+        final auth = ref.read(authServiceProvider);
+        final verification = auth.unverifiedEmailMessage;
+        if (verification != null) {
+          await auth.signOutUnconfirmedEmailSession();
+          throw Exception(verification);
+        }
         final client = Supabase.instance.client;
         final user = client.auth.currentUser;
         if (user == null) throw Exception('Please sign in again.');
@@ -394,19 +442,25 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _isEvent
-                ? 'Event submitted! The Tourism Coordinator will review it.'
-                : 'Place submitted! The Tourism Coordinator will review it.',
+            !AppConstants.isSupabaseConfigured
+                ? 'Demo mode: your submission was not saved because the '
+                    'backend is not configured.'
+                : _isEvent
+                    ? 'Event submitted! The Tourism Coordinator will review it.'
+                    : 'Place submitted! The Tourism Coordinator will review it.',
           ),
-          backgroundColor: const Color(0xFF033300),
+          backgroundColor: AppConstants.isSupabaseConfigured
+              ? const Color(0xFF033300)
+              : Colors.orange,
         ),
       );
       if (context.canPop()) context.pop();
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = 'Submission failed: $e';
+        _error =
+            'Could not submit right now. Please check your connection and try again.';
       });
     }
   }

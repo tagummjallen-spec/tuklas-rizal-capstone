@@ -34,6 +34,8 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
   final _scrollCtrl = ScrollController();
   String? _municipality;
   bool _sending = false;
+  bool _retrying = false;
+  bool _clearing = false;
 
   @override
   void dispose() {
@@ -59,29 +61,53 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
           IconButton(
             icon: const Icon(Icons.delete_sweep_outlined),
             tooltip: 'Clear chat',
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (dialogContext) => AlertDialog(
-                  title: const Text('Clear conversation?'),
-                  content: const Text(
-                    'This removes the chat bubbles on this device. Your '
-                    'verified TuklasRizal records are not affected.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext, true),
-                      child: const Text('Clear'),
-                    ),
-                  ],
-                ),
-              );
-              if (confirmed == true) await chat.clearHistory();
-            },
+            onPressed: _clearing
+                ? null
+                : () async {
+                    if (!mounted || _clearing) return;
+                    setState(() => _clearing = true);
+                    try {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Clear conversation?'),
+                          content: const Text(
+                            'This removes the chat bubbles on this device. '
+                            'Your verified TuklasRizal records are not '
+                            'affected.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, true),
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (!mounted) return;
+                      if (confirmed == true) await chat.clearHistory();
+                      if (!mounted) return;
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Could not clear the chat. Please try again.',
+                            ),
+                            backgroundColor: _forest,
+                          ),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => _clearing = false);
+                    }
+                  },
           ),
         ],
       ),
@@ -141,33 +167,68 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
   }
 
   Future<void> _retry(RagChatService chat) async {
-    final history = await chat.getHistory();
-    for (final message in history.reversed) {
-      if (message.isUser && !message.isError) {
-        await _send(chat, message.text);
-        return;
+    if (!mounted || _sending || _retrying) return;
+    setState(() => _retrying = true);
+    try {
+      final history = await chat.getHistory();
+      if (!mounted) return;
+      for (final message in history.reversed) {
+        if (message.isUser && !message.isError) {
+          await _send(chat, message.text);
+          return;
+        }
       }
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Type your question again to retry.'),
-          backgroundColor: _forest,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Type your question again to retry.'),
+            backgroundColor: _forest,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not retry just now. Please try again.'),
+            backgroundColor: _forest,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _retrying = false);
     }
   }
 
   Future<void> _send(RagChatService chat, String rawText) async {
+    if (!mounted || _sending) return;
     final text = rawText.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty) {
+      _showInputHint('Type a question before sending.');
+      return;
+    }
+    if (text.length > 500) {
+      _showInputHint('Messages must be 500 characters or fewer.');
+      return;
+    }
     setState(() => _sending = true);
     _inputCtrl.clear();
     try {
       await chat.sendMessage(text, municipality: _municipality);
+    } catch (_) {
+      _showInputHint(
+        'Could not reach the AI Tour Guide. Check your connection and retry.',
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _showInputHint(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: _forest),
+    );
   }
 }
 
@@ -739,14 +800,24 @@ class _AiItemsSection extends StatelessWidget {
   }
 }
 
-class _AiItemCard extends StatelessWidget {
+class _AiItemCard extends StatefulWidget {
   final ChatItem item;
   final SavedPlacesController saved;
 
   const _AiItemCard({required this.item, required this.saved});
 
   @override
+  State<_AiItemCard> createState() => _AiItemCardState();
+}
+
+class _AiItemCardState extends State<_AiItemCard> {
+  bool _saving = false;
+  bool _navigating = false;
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final saved = widget.saved;
     final isEvent = item.type == ChatItemType.event;
     final isSaved = isEvent
         ? saved.isEventSaved(item.id)
@@ -806,13 +877,33 @@ class _AiItemCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
-              onTap: () async {
-                if (isEvent) {
-                  await saved.toggleEvent(_placeholderEvent(item));
-                } else {
-                  await saved.togglePoi(_placeholderPoi(item));
-                }
-              },
+              onTap: _saving || _navigating
+                  ? null
+                  : () async {
+                      if (!mounted || _saving || _navigating) return;
+                      setState(() => _saving = true);
+                      try {
+                        if (isEvent) {
+                          await saved.toggleEvent(_placeholderEvent(item));
+                        } else {
+                          await saved.togglePoi(_placeholderPoi(item));
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not update your saved list. Please '
+                                'try again.',
+                              ),
+                              backgroundColor: Color(0xFF033300),
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _saving = false);
+                      }
+                    },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
                 decoration: BoxDecoration(
@@ -855,7 +946,17 @@ class _AiItemCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
-              onTap: () => context.push(detailRoute),
+              onTap: _saving || _navigating
+                  ? null
+                  : () async {
+                      if (!mounted || _saving || _navigating) return;
+                      setState(() => _navigating = true);
+                      try {
+                        await context.push(detailRoute);
+                      } finally {
+                        if (mounted) setState(() => _navigating = false);
+                      }
+                    },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
                 child: Row(
@@ -981,6 +1082,7 @@ class _Composer extends StatelessWidget {
               onSubmitted: sending ? null : onSubmitted,
               maxLines: 4,
               minLines: 1,
+              maxLength: 500,
               decoration: InputDecoration(
                 hintText: 'Ask about festivals, places, food or routes…',
                 filled: true,

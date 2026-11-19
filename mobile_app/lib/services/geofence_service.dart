@@ -9,6 +9,38 @@ import '../models/municipality.dart';
 /// What triggered an in-app cultural alert.
 enum GeofenceAlertKind { municipality, poi }
 
+/// Why nearby event alerts are or are not available on this device.
+///
+/// Keeping these states distinct lets the UI show an actionable message
+/// instead of collapsing every failure into a generic permission denial.
+enum GeofenceAvailability {
+  ready,
+  permissionDenied,
+  permissionDeniedForever,
+  gpsDisabled,
+  error,
+}
+
+/// User-facing copy for each availability state. `ready` has no message.
+extension GeofenceAvailabilityMessage on GeofenceAvailability {
+  String? get message {
+    switch (this) {
+      case GeofenceAvailability.ready:
+        return null;
+      case GeofenceAvailability.permissionDenied:
+        return 'Location permission is required for nearby event alerts.';
+      case GeofenceAvailability.permissionDeniedForever:
+        return 'Location access is permanently denied. Enable it in device '
+            'Settings.';
+      case GeofenceAvailability.gpsDisabled:
+        return 'Device location (GPS) is turned off. Enable location services '
+            'in device Settings.';
+      case GeofenceAvailability.error:
+        return 'Location could not be checked. Please try again.';
+    }
+  }
+}
+
 /// An entry event emitted when a visitor enters a Rizal municipality or comes
 /// within approach distance of a registered heritage/POI record.
 class GeofenceEntry {
@@ -41,6 +73,18 @@ abstract class GeofenceService {
   Future<bool> requestLocationPermission();
   Future<bool> isPermissionGranted();
 
+  /// Detailed, actionable state for the UI (permission denied vs permanently
+  /// denied vs device GPS off).
+  Future<GeofenceAvailability> checkAvailability();
+
+  /// Convenience helper returning actionable copy for the current state, or
+  /// null when nearby event alerts are ready.
+  Future<String?> availabilityMessage() async =>
+      (await checkAvailability()).message;
+
+  /// Last user-facing location/monitoring error, if any.
+  String? get lastError;
+
   /// Begin on-device position checks. Town centres and registered POIs are
   /// loaded from Supabase (curated town centres are used if the API is down).
   Future<void> startMonitoring();
@@ -50,10 +94,11 @@ abstract class GeofenceService {
   Municipality? municipalityAt(double lat, double lng);
 
   /// Kept for the developer simulator surface; simulated entries are always
-  /// emitted so the capstone demo works reliably indoors.
+  /// emitted so the capstone demo works reliably indoors. Returns false when
+  /// the requested municipality cannot be found so callers can show an error.
   void setDebugMode(bool enabled);
   bool get isDebugMode;
-  Future<void> simulateEntry(String municipalityId);
+  Future<bool> simulateEntry(String municipalityId);
 
   Future<double?> getCurrentLatitude();
   Future<double?> getCurrentLongitude();
@@ -105,6 +150,7 @@ class GeolocatorGeofenceService implements GeofenceService {
   bool _monitoring = false;
   bool _debugMode = false;
   String? _lastTownId;
+  String? _lastError;
 
   @override
   Stream<GeofenceEntry> get entryEvents => _entryController.stream;
@@ -116,6 +162,9 @@ class GeolocatorGeofenceService implements GeofenceService {
   bool get isDebugMode => _debugMode;
 
   @override
+  String? get lastError => _lastError;
+
+  @override
   void setDebugMode(bool enabled) => _debugMode = enabled;
 
   @override
@@ -123,15 +172,34 @@ class GeolocatorGeofenceService implements GeofenceService {
       Geolocator.distanceBetween(lat1, lng1, lat2, lng2);
 
   @override
-  Future<bool> isPermissionGranted() async {
+  Future<bool> isPermissionGranted() async =>
+      await checkAvailability() == GeofenceAvailability.ready;
+
+  @override
+  Future<String?> availabilityMessage() async =>
+      (await checkAvailability()).message;
+
+  @override
+  Future<GeofenceAvailability> checkAvailability() async {
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) return false;
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return GeofenceAvailability.gpsDisabled;
+      }
       final permission = await Geolocator.checkPermission();
-      return permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse;
+      switch (permission) {
+        case LocationPermission.always:
+        case LocationPermission.whileInUse:
+          return GeofenceAvailability.ready;
+        case LocationPermission.denied:
+          return GeofenceAvailability.permissionDenied;
+        case LocationPermission.deniedForever:
+          return GeofenceAvailability.permissionDeniedForever;
+        default:
+          return GeofenceAvailability.error;
+      }
     } catch (_) {
       // Web browsers without geolocation support / denied permission.
-      return false;
+      return GeofenceAvailability.error;
     }
   }
 
@@ -139,6 +207,7 @@ class GeolocatorGeofenceService implements GeofenceService {
   Future<bool> requestLocationPermission() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
+        _lastError = GeofenceAvailability.gpsDisabled.message;
         _enabledController.add(false);
         return false;
       }
@@ -148,9 +217,17 @@ class GeolocatorGeofenceService implements GeofenceService {
       }
       final granted = permission == LocationPermission.always ||
           permission == LocationPermission.whileInUse;
+      if (granted) {
+        _lastError = null;
+      } else {
+        // Covers both `denied` and `deniedForever`; only the latter cannot be
+        // re-prompted, so the UI must point the visitor to device Settings.
+        _lastError = (await checkAvailability()).message;
+      }
       _enabledController.add(granted);
       return granted;
     } catch (_) {
+      _lastError = GeofenceAvailability.error.message;
       _enabledController.add(false);
       return false;
     }
@@ -160,20 +237,26 @@ class GeolocatorGeofenceService implements GeofenceService {
   Future<void> startMonitoring() async {
     if (_monitoring) return;
     _monitoring = true;
+    _lastError = null;
 
     await _loadLiveGeofences();
-    final granted = await isPermissionGranted();
-    _enabledController.add(granted);
-    if (!granted) {
+    final availability = await checkAvailability();
+    if (availability != GeofenceAvailability.ready) {
+      _lastError = availability.message;
+      _enabledController.add(false);
       _monitoring = false;
       return;
     }
+    _enabledController.add(true);
 
     try {
       final position = await Geolocator.getCurrentPosition();
       _handlePosition(position);
     } catch (_) {
-      // A first fix may be unavailable indoors; the stream still delivers one.
+      // A first fix may be unavailable indoors; the stream still delivers one,
+      // but surface it so the host can explain the delayed start.
+      _lastError = 'Could not get an initial GPS fix. Location alerts will '
+          'resume when a fix is available.';
     }
 
     try {
@@ -186,10 +269,13 @@ class GeolocatorGeofenceService implements GeofenceService {
       ).listen(
         _handlePosition,
         onError: (_) {
+          _lastError = 'Location updates were interrupted. Check that location '
+              'services are enabled for this app.';
           _enabledController.add(false);
         },
       );
     } catch (_) {
+      _lastError = 'Could not start location updates. Please try again.';
       _monitoring = false;
     }
   }
@@ -338,9 +424,12 @@ class GeolocatorGeofenceService implements GeofenceService {
   }
 
   @override
-  Future<void> simulateEntry(String municipalityId) async {
+  Future<bool> simulateEntry(String municipalityId) async {
     final municipality = _findMunicipality(municipalityId);
-    if (municipality == null) return;
+    if (municipality == null) {
+      _lastError = 'That town could not be found. Please pick another.';
+      return false;
+    }
     // Demo entries bypass cooldown: the caller wants a visible alert every
     // time, even when two towns are selected back-to-back indoors.
     _emit(
@@ -348,6 +437,7 @@ class GeolocatorGeofenceService implements GeofenceService {
       'town:${municipality.id}',
       force: true,
     );
+    return true;
   }
 
   Municipality? _findMunicipality(String idOrSlug) {

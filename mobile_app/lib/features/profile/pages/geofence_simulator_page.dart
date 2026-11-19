@@ -16,6 +16,7 @@ class GeofenceSimulatorPage extends ConsumerStatefulWidget {
 
 class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
   bool _debugEnabled = false;
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -75,16 +76,45 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
                       subtitle: Text(m.tourismOfficeContact),
                       trailing: const Icon(Icons.play_circle,
                           color: Color(0xFFFFC800)),
-                      onTap: () async {
-                        await geofence.simulateEntry(m.id);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Simulated entry to ${m.name}'),
-                            ),
-                          );
-                        }
-                      },
+                      onTap: _busy
+                          ? null
+                          : () async {
+                              if (_busy) return;
+                              setState(() => _busy = true);
+                              try {
+                                final didSimulate =
+                                    await geofence.simulateEntry(m.id);
+                                if (!context.mounted) return;
+                                if (!didSimulate) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Could not simulate that town. Please '
+                                        'try again.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Simulated entry to ${m.name}'),
+                                  ),
+                                );
+                              } catch (_) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not simulate town entry. Please '
+                                      'try again.',
+                                    ),
+                                  ),
+                                );
+                              } finally {
+                                if (mounted) setState(() => _busy = false);
+                              }
+                            },
                     ),
                   )),
               const SizedBox(height: 24),

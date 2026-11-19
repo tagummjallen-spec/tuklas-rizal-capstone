@@ -30,7 +30,20 @@ export async function resolveVerificationDoc(
   path: string,
 ): Promise<{ url: string | null; error: string | null }> {
   if (!path) return { url: null, error: 'Empty document reference.' };
-  if (/^https?:\/\//i.test(path)) return { url: path, error: null };
+  if (/^https?:\/\//i.test(path)) {
+    try {
+      const parsed = new URL(path);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { url: null, error: 'Unsupported document link.' };
+      }
+      if (!parsed.hostname) {
+        return { url: null, error: 'Invalid document link.' };
+      }
+      return { url: path, error: null };
+    } catch {
+      return { url: null, error: 'Invalid document link.' };
+    }
+  }
   try {
     const { data, error } = await supabase.storage
       .from(VERIFICATION_BUCKET)
@@ -59,6 +72,19 @@ export async function uploadVerificationFile(
   const allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
   if (!allowed.includes(extension)) {
     throw new Error('Only JPG, PNG, WEBP or PDF documents are accepted.');
+  }
+  const allowedMime = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/pdf',
+    '',
+  ];
+  if (file.type && !allowedMime.includes(file.type)) {
+    throw new Error('Only JPG, PNG, WEBP or PDF documents are accepted.');
+  }
+  if (extension === 'pdf' && file.type && file.type !== 'application/pdf') {
+    throw new Error('That PDF has an unexpected file type. Please re-save it and try again.');
   }
   const safeName = `${Date.now()}_${file.name
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
