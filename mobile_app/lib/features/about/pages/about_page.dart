@@ -30,11 +30,11 @@ class AboutPage extends StatelessWidget {
     ),
     (
       icon: Icons.auto_awesome,
-      title: 'Interest-based recommendations',
+      title: 'Promote Towns and Events',
       body:
           'Pick the culture, food, nature or sports you love during onboarding '
-          'and matching events and places are surfaced first, with a '
-          '"Recommended for You" badge.',
+          'and matching events and places are surfaced first. Lesser-visited '
+          'towns are boosted fairly, and every boost shows a clear reason pill.',
     ),
     (
       icon: Icons.event_available,

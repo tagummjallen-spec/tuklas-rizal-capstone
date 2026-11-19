@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/tourism_images.dart';
 import 'app_motion.dart';
+import 'promotion_reason_pill.dart';
 
 /// Reusable POI (point of interest) card with a Rizal photography fallback and
 /// a bookmark toggle.
@@ -16,6 +17,9 @@ class PoiCard extends StatelessWidget {
 
   /// Interest-based boost: shows the "Recommended for You" badge.
   final bool isRecommended;
+
+  /// Explainable reason for a promotion / interest match.
+  final String? promotionReason;
   final VoidCallback onTap;
   final VoidCallback? onToggleSave;
 
@@ -32,6 +36,7 @@ class PoiCard extends StatelessWidget {
     this.municipalityKey,
     this.isSaved = false,
     this.isRecommended = false,
+    this.promotionReason,
     required this.onTap,
     this.onToggleSave,
     this.heroTag,
@@ -173,6 +178,10 @@ class PoiCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (promotionReason != null) ...[
+                    const SizedBox(height: 8),
+                    PromotionReasonPill(text: promotionReason!),
+                  ],
                 ],
               ),
             ),

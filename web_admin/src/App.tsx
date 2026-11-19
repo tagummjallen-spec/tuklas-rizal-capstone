@@ -4,7 +4,7 @@ import { Alert, Button, Card, Spinner } from './components/ui';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useLookups } from './hooks/useLookups';
 import { usePendingApprovals } from './hooks/usePendingApprovals';
-import { NAV_ITEMS, type ViewKey } from './lib/rbac';
+import { isApprovedProfile, NAV_ITEMS, type ViewKey } from './lib/rbac';
 import DashboardPage from './pages/DashboardPage';
 import EventsPage from './pages/EventsPage';
 import InquiriesPage from './pages/InquiriesPage';
@@ -31,7 +31,7 @@ function Portal() {
   const [view, setView] = useState<ViewKey>('dashboard');
   const [pendingRefresh, setPendingRefresh] = useState(0);
   const pendingApprovals = usePendingApprovals(
-    Boolean(profile && profile.role_tier >= 4 && profile.is_approved),
+    Boolean(profile && profile.role_tier >= 4 && isApprovedProfile(profile)),
     `${view}-${pendingRefresh}`,
   );
 
@@ -70,7 +70,10 @@ function Portal() {
 
   if (!profile) return <Splash label="Preparing your portal…" />;
 
-  if (!profile.is_approved) {
+  // Google and email sign-ins are gated the same way: role_tier + approval are
+  // read from public.users after the OAuth redirect resolves. Unapproved LGU
+  // staff land on the pending/request-access state instead of the dashboard.
+  if (!isApprovedProfile(profile)) {
     return (
       <PendingApprovalPage
         profile={profile}

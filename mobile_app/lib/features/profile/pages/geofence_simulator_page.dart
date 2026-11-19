@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/municipalities.dart';
+import '../../../core/providers/app_providers.dart';
 import '../../../services/geofence_service.dart';
 
 /// Geofence Simulator — developer debug toggle to trigger municipal entry
@@ -23,7 +24,7 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Geofence Simulator'),
+        title: const Text('Demo: Simulate Town Entry'),
         centerTitle: true,
       ),
       body: StreamBuilder<GeofenceEntry>(
@@ -43,14 +44,15 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Trigger a welcome alert for a municipality to test local '
-                'attractions, events, unique foods, and directions.',
+                'Trigger a live municipal welcome alert to test cultural '
+                'banners during the capstone defense — no physical travel '
+                'required.',
                 style: TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
               ),
               const SizedBox(height: 20),
               SwitchListTile(
                 title: const Text(AppConstants.geofenceDebugToggleLabel),
-                subtitle: const Text('Developer debug toggle — mock only'),
+                subtitle: const Text('Demo mode for staged entry alerts'),
                 value: _debugEnabled,
                 activeThumbColor: const Color(0xFF033300),
                 onChanged: (v) {
@@ -136,7 +138,3 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
     );
   }
 }
-
-/// Provider for geofence service.
-final geofenceServiceProvider = Provider<GeofenceService>((ref) =>
-    MockGeofenceService());

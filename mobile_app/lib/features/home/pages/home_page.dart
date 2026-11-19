@@ -8,6 +8,8 @@ import '../../../core/constants/categories.dart';
 import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/interest_matcher.dart';
+import '../../../core/utils/promotion_reason.dart';
+import '../../../core/widgets/ai_guide_button.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/hero_carousel.dart';
@@ -78,6 +80,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          const AiGuideButton(),
           const _NotificationBell(),
           PopupMenuButton<String>(
             tooltip: 'More',
@@ -139,6 +142,62 @@ class _HomePageState extends ConsumerState<HomePage> {
                 onDismiss: (id) => setState(() => _dismissedBroadcasts.add(id)),
               ),
               const HeroCarousel(),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () => context.go('/assistant'),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF033300), Color(0xFF0A5A16)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFFC800)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFC800),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.auto_awesome,
+                            color: Color(0xFF033300), size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ask the AI Tour Guide',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Festivals, heritage, food & routes — '
+                              'answers from verified records',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios,
+                          color: Color(0xFFFFC800), size: 16),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 18),
               const Text(
                 'Discover Rizal',
@@ -292,12 +351,20 @@ class _HomePageState extends ConsumerState<HomePage> {
                   stream: discovery.promoteTownsAndEvents,
                   builder: (context, snap) {
                     final events = _applyFilters(snap.data ?? []);
+                    // Visit counts start empty until the visits table is wired.
+                    // The scorer and the explanation pills share them so the
+                    // stated reason always matches the actual ranking.
+                    final visitCounts = <String, int>{};
+                    final interestIds = _selectedCategoryId != null
+                        ? <String>[_selectedCategoryId!]
+                        : recommended.categoryIds;
+                    bool isInterestMatch(EventItem event) =>
+                        event.categoryId != null &&
+                        interestIds.contains(event.categoryId);
                     final promoted = discovery.scorePromoteTownsAndEvents(
                       events: events,
-                      userInterestCategoryIds: _selectedCategoryId != null
-                          ? [_selectedCategoryId!]
-                          : recommended.categoryIds,
-                      municipalityVisitCounts: {},
+                      userInterestCategoryIds: interestIds,
+                      municipalityVisitCounts: visitCounts,
                     );
                     if (promoted.isEmpty) {
                       if (snap.connectionState == ConnectionState.waiting) {
@@ -338,6 +405,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 isPromoted: e.promotedRank > 0,
                                 isFeatured: e.isFeatured,
                                 isRecommended: isRecommendedEvent(e),
+                                promotionReason: eventPromotionReason(
+                                  event: e,
+                                  isInterestMatch: isInterestMatch(e),
+                                  visitCount: visitCounts[e.municipalityId] ?? 0,
+                                ),
                                 isSaved: saved.isEventSaved(e.id),
                                 onToggleSave: () => _toggleSavedEvent(e),
                                 onTap: () => context.push(
@@ -406,6 +478,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 heroTag: 'home-featured-${e.id}',
                                 isFeatured: true,
                                 isRecommended: isRecommendedEvent(e),
+                                promotionReason: eventPromotionReason(
+                                  event: e,
+                                  isInterestMatch: isRecommendedEvent(e),
+                                  visitCount: 0,
+                                ),
                                 isSaved: saved.isEventSaved(e.id),
                                 onToggleSave: () => _toggleSavedEvent(e),
                                 onTap: () => context.push(

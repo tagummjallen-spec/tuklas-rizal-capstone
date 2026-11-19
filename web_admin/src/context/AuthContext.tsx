@@ -27,6 +27,8 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Google OAuth via Supabase; the redirect is handled by onAuthStateChange. */
+  signInWithGoogle: () => Promise<void>;
   signUp: (input: SignUpInput) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -37,6 +39,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function metaString(meta: Record<string, unknown>, key: string): string | null {
   const value = meta[key];
   return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+/** True when the Supabase user authenticated with a Google account. */
+function isGoogleUser(meta: Record<string, unknown>): boolean {
+  if (meta.provider === 'google') return true;
+  const providers = meta.providers;
+  return Array.isArray(providers) && providers.includes('google');
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -67,19 +76,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const meta = (current.user.user_metadata ?? {}) as Record<string, unknown>;
+    const googleName = metaString(meta, 'full_name') ?? metaString(meta, 'name');
+    const googleAvatar = metaString(meta, 'avatar_url') ?? metaString(meta, 'picture');
+
     if (data) {
-      setProfile(data as UserProfile);
+      // Google users who already have a public.users row get a best-effort
+      // top-up of provider metadata (avatar / name). Never overwrite the
+      // LGU-assigned role_tier or approval flags here.
+      if (isGoogleUser(meta) && (googleAvatar || googleName)) {
+        const topUp: Record<string, string> = {};
+        const existing = data as UserProfile;
+        if (googleAvatar && !existing.avatar_url) topUp.avatar_url = googleAvatar;
+        if (googleName && (!existing.full_name || existing.full_name === 'LGU Staff')) {
+          topUp.full_name = googleName;
+        }
+        if (Object.keys(topUp).length > 0) {
+          await supabase.from('users').update(topUp).eq('id', current.user.id);
+        }
+      }
+
+      const { data: refreshed } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', current.user.id)
+        .maybeSingle();
+      setProfile((refreshed as UserProfile | null) ?? (data as UserProfile));
       setLoading(false);
       return;
     }
 
-    const meta = (current.user.user_metadata ?? {}) as Record<string, unknown>;
     const tier = Number(meta.role_tier ?? 1) || 1;
 
     const { error: insertError } = await supabase.from('users').insert({
       id: current.user.id,
       email: current.user.email ?? '',
-      full_name: metaString(meta, 'full_name') ?? 'LGU Staff',
+      full_name: googleName ?? metaString(meta, 'full_name') ?? 'LGU Staff',
+      avatar_url: googleAvatar,
       role_tier: tier,
       role_title: metaString(meta, 'role_title') ?? roleTitleFor(tier),
       municipality_id: metaString(meta, 'municipality_id'),
@@ -127,6 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setError(null);
         setLoading(false);
+      } else {
+        // Google OAuth returns to window.location.origin with a session.
+        // Re-verify public.users (role_tier + approval) after the redirect so
+        // approved LGU admins enter the dashboard and unapproved see pending.
+        void loadProfile(next);
       }
     });
 
@@ -150,6 +188,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [loadProfile],
   );
+
+  const signInWithGoogle = useCallback(async () => {
+    setError(null);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (oauthError) throw new Error(describeError(oauthError));
+    // The browser is navigated to Google; on return, onAuthStateChange /
+    // getSession load and verify the public.users profile.
+  }, []);
 
   const signUp = useCallback(
     async (input: SignUpInput) => {
@@ -219,11 +270,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       signIn,
+      signInWithGoogle,
       signUp,
       signOut,
       refreshProfile,
     }),
-    [session, profile, loading, error, signIn, signUp, signOut, refreshProfile],
+    [session, profile, loading, error, signIn, signInWithGoogle, signUp, signOut, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

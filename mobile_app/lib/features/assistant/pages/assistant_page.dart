@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
+
+import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../models/chat_message.dart';
 import '../../../services/rag_chat_service.dart';
 
-/// Conversational AI Assistant (Llama LLM + RAG) — answers who, what, when,
-/// how to get there, and coordinator contact details.
-///
-/// Backed by a stubbed RAG service until the full dataset + Llama pipeline are ready.
+const List<String> _starterPrompts = <String>[
+  'Festivals in Angono & Tanay',
+  'How to commute to Daranak Falls',
+  'Lesser-known heritage spots',
+  'Weekend family itinerary',
+];
+
+/// Live AI Tour Guide — Groq + Gemini fallback RAG answers grounded in the
+/// approved events, POIs and tourism-office records stored in Supabase.
 class AssistantPage extends ConsumerStatefulWidget {
   const AssistantPage({super.key});
 
@@ -17,8 +23,19 @@ class AssistantPage extends ConsumerStatefulWidget {
 }
 
 class _AssistantPageState extends ConsumerState<AssistantPage> {
+  static const Color _forest = Color(0xFF033300);
+
   final _inputCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+  String? _municipality;
   bool _sending = false;
+
+  @override
+  void dispose() {
+    _inputCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,140 +43,584 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
     final chat = ref.read(ragChatServiceProvider);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F6F2),
       appBar: AppBar(
-        title: const Text(AppConstants.conversationalAssistant),
+        title: const Text('AI Tour Guide'),
         centerTitle: true,
+        backgroundColor: _forest,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () async {
-              await chat.clearHistory();
-            },
+            icon: const Icon(Icons.delete_sweep_outlined),
             tooltip: 'Clear chat',
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Clear conversation?'),
+                  content: const Text(
+                    'This removes the chat bubbles on this device. Your '
+                    'verified TuklasRizal records are not affected.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true) await chat.clearHistory();
+            },
           ),
         ],
       ),
       body: Column(
         children: [
+          _GuideHeader(
+            municipality: _municipality,
+            onMunicipalityChanged: (value) =>
+                setState(() => _municipality = value),
+          ),
           Expanded(
             child: StreamBuilder<List<ChatMessage>>(
               stream: chat.messages,
               builder: (context, snap) {
-                final messages = snap.data ?? [];
+                final messages = snap.data ?? const <ChatMessage>[];
                 if (messages.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Ask me about Rizal — festivals, heritage sites, foods, '
-                      'or Tourism Coordinator contacts.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 15, color: Color(0xFF6B6B6B)),
-                    ),
+                  return _StarterPanel(
+                    onStarterTap: (text) => _send(chat, text),
                   );
                 }
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollCtrl.hasClients) {
+                    _scrollCtrl.animateTo(
+                      _scrollCtrl.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                });
                 return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: messages.length,
-                  itemBuilder: (_, i) {
-                    final m = messages[i];
-                    return Align(
-                      alignment: m.isUser
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.all(12),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.82,
-                        ),
-                        decoration: BoxDecoration(
-                          color: m.isUser
-                              ? const Color(0xFF033300)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: m.isUser
-                              ? null
-                              : Border.all(color: const Color(0xFFE5E5E5)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              m.text,
-                              style: TextStyle(
-                                color: m.isUser
-                                    ? Colors.white
-                                    : const Color(0xFF1B1B1B),
-                              ),
-                            ),
-                            if (!m.isUser && (m.sources ?? []).isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Sources: ${m.sources!.join(', ')}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Color(0xFF6B6B6B),
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
+                  controller: _scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+                  itemCount: messages.length + (_sending ? 1 : 0),
+                  itemBuilder: (_, index) {
+                    if (index == messages.length) {
+                      return const _TypingIndicator();
+                    }
+                    return _ChatBubble(
+                      message: messages[index],
+                      onRetry: messages[index].isError
+                          ? () => _retry(chat)
+                          : null,
                     );
                   },
                 );
               },
             ),
           ),
-          if (_sending)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _inputCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'Ask about Higantes Festival, Petroglyphs, Tiangge...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12,
-                        ),
-                      ),
-                      onSubmitted: _sending ? null : (_) => _send(chat),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: const Color(0xFF033300),
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _sending ? null : () => _send(chat),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _Composer(
+            controller: _inputCtrl,
+            sending: _sending,
+            onSubmitted: (text) => _send(chat, text),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _send(RagChatService chat) async {
-    final text = _inputCtrl.text.trim();
+  Future<void> _retry(RagChatService chat) async {
+    final history = await chat.getHistory();
+    for (final message in history.reversed) {
+      if (message.isUser && !message.isError) {
+        await _send(chat, message.text);
+        return;
+      }
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Type your question again to retry.'),
+          backgroundColor: _forest,
+        ),
+      );
+    }
+  }
+
+  Future<void> _send(RagChatService chat, String rawText) async {
+    final text = rawText.trim();
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     _inputCtrl.clear();
-    await chat.sendMessage(text);
-    setState(() => _sending = false);
+    try {
+      await chat.sendMessage(text, municipality: _municipality);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+}
+
+class _GuideHeader extends StatelessWidget {
+  final String? municipality;
+  final ValueChanged<String?> onMunicipalityChanged;
+
+  const _GuideHeader({
+    required this.municipality,
+    required this.onMunicipalityChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF033300), Color(0xFF0A5A16)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFC800),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Color(0xFF033300),
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TuklasRizal Provincial Tourism Guide',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Verified events, heritage sites, routes & contacts',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFC800).withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFFFC800)),
+                ),
+                child: const Text(
+                  'LIVE',
+                  style: TextStyle(
+                    color: Color(0xFFFFC800),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.filter_alt_outlined,
+                  color: Color(0xFFFFC800), size: 16),
+              const SizedBox(width: 6),
+              const Text(
+                'Focus town:',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: DropdownButton<String?>(
+                    value: municipality,
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    icon: const Icon(Icons.expand_more,
+                        color: Color(0xFF033300)),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(
+                          'All 14 municipalities',
+                          style: TextStyle(
+                              color: Color(0xFF033300), fontSize: 13),
+                        ),
+                      ),
+                      for (final town in RizalMunicipalities.all)
+                        DropdownMenuItem<String?>(
+                          value: town.name,
+                          child: Text(
+                            town.name,
+                            style: const TextStyle(
+                                color: Color(0xFF033300), fontSize: 13),
+                          ),
+                        ),
+                    ],
+                    onChanged: onMunicipalityChanged,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StarterPanel extends StatelessWidget {
+  final ValueChanged<String> onStarterTap;
+
+  const _StarterPanel({required this.onStarterTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFFFC800), width: 1.5),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.tour, color: Color(0xFF033300), size: 44),
+                SizedBox(height: 10),
+                Text(
+                  'Kamusta! I am your Rizal tour guide.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF033300),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Ask in English, Tagalog or Taglish. I answer only from '
+                  'verified TuklasRizal records — no invented dates, fees '
+                  'or routes.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Try asking:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF033300),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final starter in _starterPrompts)
+                _StarterChip(label: starter, onTap: () => onStarterTap(starter)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StarterChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _StarterChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFFFC800)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lightbulb_outline,
+                  size: 15, color: Color(0xFF033300)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF033300),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatBubble extends StatelessWidget {
+  final ChatMessage message;
+  final VoidCallback? onRetry;
+
+  const _ChatBubble({required this.message, this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = message.isUser;
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!isUser) ...[
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: const Color(0xFFFFC800),
+                child: Icon(
+                  message.isError ? Icons.wifi_off : Icons.tour,
+                  size: 16,
+                  color: const Color(0xFF033300),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.76,
+                ),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? const Color(0xFF033300)
+                      : (message.isError
+                          ? const Color(0xFFFFF3E0)
+                          : Colors.white),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: Radius.circular(isUser ? 16 : 4),
+                    bottomRight: Radius.circular(isUser ? 4 : 16),
+                  ),
+                  border: isUser
+                      ? null
+                      : Border.all(
+                          color: message.isError
+                              ? const Color(0xFFFFC800)
+                              : const Color(0xFFE5E5E5),
+                        ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message.text,
+                      style: TextStyle(
+                        color: isUser
+                            ? Colors.white
+                            : const Color(0xFF1B1B1B),
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (!isUser &&
+                        !message.isError &&
+                        (message.sources ?? []).isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Verified: ${message.sources!.join(' · ')}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF6B6B6B),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                    if (onRetry != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: onRetry,
+                        icon: const Icon(Icons.refresh, size: 14),
+                        label: const Text('Retry'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF033300),
+                          side: const BorderSide(color: Color(0xFF033300)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E5E5)),
+        ),
+        child: const SizedBox(
+          width: 36,
+          height: 12,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: Color(0xFFFFC800),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Composer extends StatelessWidget {
+  final TextEditingController controller;
+  final bool sending;
+  final ValueChanged<String> onSubmitted;
+
+  const _Composer({
+    required this.controller,
+    required this.sending,
+    required this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: Color(0x11000000), blurRadius: 8, offset: Offset(0, -2)),
+        ],
+      ),
+      padding: EdgeInsets.fromLTRB(
+        12,
+        10,
+        12,
+        MediaQuery.viewPaddingOf(context).bottom + 10,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              enabled: !sending,
+              textInputAction: TextInputAction.send,
+              onSubmitted: sending ? null : onSubmitted,
+              maxLines: 4,
+              minLines: 1,
+              decoration: InputDecoration(
+                hintText: 'Ask about festivals, places, food or routes…',
+                filled: true,
+                fillColor: const Color(0xFFF7F6F2),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFC800),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF033300),
+                      ),
+                    )
+                  : const Icon(Icons.send, color: Color(0xFF033300)),
+              tooltip: 'Send',
+              onPressed: sending
+                  ? null
+                  : () => onSubmitted(controller.text.trim()),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

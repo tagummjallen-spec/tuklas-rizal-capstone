@@ -1,0 +1,6 @@
+# Supabase CLI configuration for TuklasRizal.
+# Guests use the AI Tour Guide without a Supabase Auth session, so JWT
+# verification is disabled for this Edge Function. Retrieval inside the
+# function only reads public tourism records from Supabase.
+[functions.rizal-ai-chat]
+verify_jwt = false

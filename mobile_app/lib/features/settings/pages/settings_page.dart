@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/logout_confirmation.dart';
+import '../location_consent.dart';
 
 /// Rizal Events Hub — App Settings.
 ///
@@ -22,6 +25,7 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
     final user = ref.watch(authStateProvider).valueOrNull;
+    final locationConsent = ref.watch(locationConsentProvider);
 
     return Scaffold(
       backgroundColor: _cream,
@@ -343,16 +347,79 @@ class SettingsPage extends ConsumerWidget {
                   ],
                 ),
 
-                // RECOMMENDATIONS ----------------------------------------------
+                // LOCATION & PRIVACY ------------------------------------------
                 _SettingsCard(
-                  title: 'EVENT RECOMMENDATIONS',
+                  title: 'LOCATION & PRIVACY',
+                  children: [
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: locationConsent.alertsEnabled,
+                      activeThumbColor: _forest,
+                      title: const Text(
+                        'Municipal Cultural Alerts',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'GPS coordinates are checked on-device for town & '
+                        'heritage banners · RA 10173',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      onChanged: (enabled) async {
+                        final geofence = ref.read(geofenceServiceProvider);
+                        if (!enabled) {
+                          await locationConsent.setEnabled(false);
+                          geofence.stopMonitoring();
+                          return;
+                        }
+                        final agreed = await showLocationPrivacyDialog(context);
+                        if (!agreed) return;
+                        await locationConsent.acceptNotice();
+                        final granted = await geofence.requestLocationPermission();
+                        if (!context.mounted) return;
+                        if (!granted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Location permission was not granted. Enable '
+                                'it in your device settings to receive '
+                                'cultural alerts.',
+                              ),
+                              backgroundColor: _forest,
+                            ),
+                          );
+                          return;
+                        }
+                        await locationConsent.setEnabled(true);
+                        await geofence.startMonitoring();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Municipal Cultural Alerts are now on.',
+                            ),
+                            backgroundColor: _forest,
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                    const _DemoTownEntryPicker(),
+                  ],
+                ),
+
+                // PROMOTE TOWNS AND EVENTS ------------------------------------
+                _SettingsCard(
+                  title: 'PROMOTE TOWNS AND EVENTS',
                   children: [
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: settings.recommendationsEnabled,
                       activeThumbColor: _forest,
                       title: const Text(
-                        'Rizal Events Hub Recommendations',
+                        AppConstants.promoteTownsAndEventsTitle,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -551,6 +618,113 @@ class _Avatar extends StatelessWidget {
       radius: radius,
       backgroundColor: const Color(0xFFFFC800),
       child: Icon(Icons.person, size: radius, color: const Color(0xFF033300)),
+    );
+  }
+}
+
+/// Indoor demo of municipal geofence entry — works without a GPS fix so the
+/// welcome banner can be shown reliably during the capstone defense.
+class _DemoTownEntryPicker extends ConsumerStatefulWidget {
+  const _DemoTownEntryPicker();
+
+  @override
+  ConsumerState<_DemoTownEntryPicker> createState() =>
+      _DemoTownEntryPickerState();
+}
+
+class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
+  late String _selectedTownId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTownId = RizalMunicipalities.all.first.id;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final towns = RizalMunicipalities.all;
+    final selected = RizalMunicipalities.byId(_selectedTownId);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Demo: Simulate Town Entry',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Pick any of the 14 towns to trigger the cultural welcome banner '
+            'indoors.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6B6B6B)),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F6F2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFCFE0CB)),
+                  ),
+                  child: DropdownButton<String>(
+                    value: _selectedTownId,
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    items: [
+                      for (final town in towns)
+                        DropdownMenuItem<String>(
+                          value: town.id,
+                          child: Text(
+                            town.name,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _selectedTownId = value);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC800),
+                  foregroundColor: const Color(0xFF033300),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () async {
+                  await ref
+                      .read(geofenceServiceProvider)
+                      .simulateEntry(_selectedTownId);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Simulated entry to ${selected?.name ?? 'town'}',
+                      ),
+                      backgroundColor: const Color(0xFF033300),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Trigger',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

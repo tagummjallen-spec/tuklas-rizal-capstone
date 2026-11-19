@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/promotion_reason.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../models/event_item.dart';
@@ -185,6 +186,11 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                             heroTag: 'event-image-${e.id}',
                             isPromoted: e.promotionWeight > 1.0,
                             isFeatured: e.isFeatured,
+                            promotionReason: eventPromotionReason(
+                              event: e,
+                              isInterestMatch: false,
+                              visitCount: 0,
+                            ),
                             isSaved: saved.isEventSaved(e.id),
                             onToggleSave: () => _toggleSavedEvent(e),
                             onTap: () => context.push('/event/${e.id}'),

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/app_providers.dart';
 import '../../../models/user_profile.dart';
+import '../../../services/auth_service.dart';
 
 /// Rizal Events Hub sign-in.
 ///
@@ -497,17 +498,42 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _googleSignIn() async {
-    setState(() => _googleBusy = true);
+    setState(() {
+      _googleBusy = true;
+      _error = null;
+    });
     try {
-      await ref.read(authServiceProvider).signInWithGoogle();
-      final profile = await ref.read(authServiceProvider).ensureProfile();
+      final auth = ref.read(authServiceProvider);
+      final launched = await auth.signInWithGoogle();
+      if (!launched) {
+        _showMessage(
+          'Google sign-in could not start. Allow pop-ups and try again.',
+          isError: true,
+        );
+        return;
+      }
+      // The deep-link / web-origin redirect resolves to a live session. Ensure
+      // the profile exists and sync the 4-step welcome interests to Supabase.
+      final profile = await auth.completeGoogleSignIn(
+        onboardingInterests: ref.read(onboardingControllerProvider).interests,
+      );
       if (profile != null) await _afterAuth(profile);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = 'Google sign-in failed: $e');
+      _showMessage(friendlyAuthMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _googleBusy = false);
     }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    setState(() => _error = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFB00020) : _forest,
+      ),
+    );
   }
 
   Future<void> _afterAuth(UserProfile profile) async {

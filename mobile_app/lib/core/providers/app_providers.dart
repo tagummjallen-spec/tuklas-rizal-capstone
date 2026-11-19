@@ -40,17 +40,15 @@ final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
   return MockDiscoveryService();
 });
 
+/// Live GPS geofencing: coordinates are checked on-device against the 14
+/// Rizal municipality centres and registered POIs from Supabase.
 final geofenceServiceProvider = Provider<GeofenceService>((ref) =>
-    MockGeofenceService());
+    GeolocatorGeofenceService());
 
-final ragChatServiceProvider = Provider<RagChatService>((ref) {
-  if (AppConstants.isSupabaseConfigured) {
-    // Live retrieval from municipalities / approved events / pois_logistics.
-    // Flip `useRemoteLlm` to true once the Llama endpoint is wired up.
-    return SupabaseRagChatService(useRemoteLlm: false);
-  }
-  return MockRagChatService();
-});
+/// Live RAG chat: every answer comes from the deployed `rizal-ai-chat`
+/// Supabase Edge Function (Groq primary, Gemini fallback).
+final ragChatServiceProvider = Provider<RagChatService>((ref) =>
+    SupabaseRagChatService());
 
 final coordinatorServiceProvider = Provider<CoordinatorService>((ref) {
   if (AppConstants.isSupabaseConfigured) {

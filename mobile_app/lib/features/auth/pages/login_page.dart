@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../services/auth_service.dart';
 
 class _OrDivider extends StatelessWidget {
   const _OrDivider();
@@ -393,11 +394,25 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   }
 
   Future<void> _googleSignUp() async {
-    setState(() => _googleBusy = true);
+    setState(() {
+      _googleBusy = true;
+      _error = null;
+    });
     try {
       final auth = ref.read(authServiceProvider);
-      await auth.signInWithGoogle();
-      final profile = await auth.ensureProfile();
+      final launched = await auth.signInWithGoogle();
+      if (!launched) {
+        _showMessage(
+          'Google sign-in could not start. Allow pop-ups and try again.',
+          isError: true,
+        );
+        return;
+      }
+      // Ensures public.users is upserted from Google metadata and persists any
+      // interests selected in the local 4-step welcome onboarding.
+      final profile = await auth.completeGoogleSignIn(
+        onboardingInterests: ref.read(onboardingControllerProvider).interests,
+      );
       if (profile == null) return;
       final onboarded = await auth.hasSavedInterests(profile.id);
       if (!mounted) return;
@@ -407,11 +422,21 @@ class _SignupPageState extends ConsumerState<SignupPage> {
         context.pushReplacement('/onboarding/interests');
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = 'Google sign-in failed: $e');
+      _showMessage(friendlyAuthMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _googleBusy = false);
     }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    setState(() => _error = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFB00020) : const Color(0xFF033300),
+      ),
+    );
   }
 }
 
@@ -439,7 +464,9 @@ class _OAuthCallbackPageState extends ConsumerState<OAuthCallbackPage> {
   Future<void> _complete() async {
     final auth = ref.read(authServiceProvider);
     for (var attempt = 0; attempt < 6; attempt++) {
-      final profile = await auth.ensureProfile();
+      final profile = await auth.completeGoogleSignIn(
+        onboardingInterests: ref.read(onboardingControllerProvider).interests,
+      );
       if (profile != null) {
         final onboarded = await auth.hasSavedInterests(profile.id);
         if (!mounted) return;

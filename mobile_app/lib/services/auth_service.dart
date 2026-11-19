@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants/app_constants.dart';
 import '../models/user_profile.dart';
@@ -29,9 +30,17 @@ abstract class AuthService {
   Future<void> updateProfile(UserProfile profile);
 
   /// Google account picker via Supabase OAuth. Returns true when the platform
-  /// completed the flow in-place (web); on mobile the browser round-trip
-  /// resolves through [authStateChanges].
+  /// successfully launched the authorization URL; on mobile the browser
+  /// round-trip resolves through [authStateChanges] / [auth-callback].
   Future<bool> signInWithGoogle();
+
+  /// Finishes a Google sign-in once the session is available: upserts the
+  /// `public.users` row from Google metadata (email, full name, avatar) and
+  /// syncs any interests chosen in the local 4-step welcome onboarding into
+  /// `public.user_interests`. Returns null when no session exists yet.
+  Future<UserProfile?> completeGoogleSignIn({
+    List<String> onboardingInterests = const [],
+  });
 
   /// Confirms the 6-digit signup code sent by email and activates the profile.
   Future<UserProfile> verifySignupOtp(String email, String token);
@@ -274,11 +283,34 @@ class SupabaseAuthService implements AuthService {
   @override
   Future<bool> signInWithGoogle() async {
     _emailConfirmationRequired = false;
+    // PKCE is configured explicitly in `main.dart` (AuthFlowType.pkce) and
+    // `AppConstants.oauthRedirectUrl` picks the web origin or the mobile deep
+    // link. Google on mobile must open in an external browser so the deep link
+    // can return to the app; on web stay in this tab for the code exchange.
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: AppConstants.oauthRedirectUrl,
-      authScreenLaunchMode: LaunchMode.externalApplication,
+      authScreenLaunchMode:
+          kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
     );
+  }
+
+  @override
+  Future<UserProfile?> completeGoogleSignIn({
+    List<String> onboardingInterests = const [],
+  }) async {
+    final profile = await ensureProfile();
+    if (profile == null) return null;
+
+    // A guest may have picked interests in the 4-step welcome flow before
+    // signing in. Persist them once, without wiping interests already stored.
+    if (onboardingInterests.isNotEmpty) {
+      final existing = await loadUserInterestCategories(profile.id);
+      if (existing.isEmpty) {
+        await setUserInterests(profile.id, onboardingInterests);
+      }
+    }
+    return await _fetchProfile(profile.id) ?? profile;
   }
 
   @override
@@ -394,23 +426,66 @@ class SupabaseAuthService implements AuthService {
     }
   }
 
+  /// True when the current Supabase auth user signed in with Google.
+  static bool _isGoogleUser(User user) {
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final appMeta = user.appMetadata;
+    final providers = meta['providers'];
+    return meta['provider'] == 'google' ||
+        appMeta['provider'] == 'google' ||
+        (providers is List && providers.contains('google'));
+  }
+
   /// Creates the `public.users` row for a confirmed signup that had no session
-  /// at signUp time (email-confirmation flow). Safe to call repeatedly.
+  /// at signUp time (email-confirmation flow). For Google OAuth sign-ins the
+  /// existing row is topped up with any missing email / full name / avatar so
+  /// the profile reflects the provider metadata. Safe to call repeatedly.
   @override
   Future<UserProfile?> ensureProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
     final existing = await _fetchProfile(user.id);
-    if (existing != null) return existing;
-
     final meta = user.userMetadata ?? const <String, dynamic>{};
-    final fullName = meta['full_name'];
+
+    final rawAvatar = meta['avatar_url'] ?? meta['picture'];
+    final googleAvatar = rawAvatar is String && rawAvatar.isNotEmpty
+        ? rawAvatar
+        : null;
+    final rawName = meta['full_name'] ?? meta['name'];
+    final googleName = rawName is String && rawName.trim().isNotEmpty
+        ? rawName.trim()
+        : null;
+
+    if (existing != null) {
+      final needsSync = _isGoogleUser(user) &&
+          ((googleAvatar != null && existing.avatarUrl == null) ||
+              (googleName != null && existing.fullName == 'User') ||
+              (user.email != null && existing.email.isEmpty));
+      if (!needsSync) return existing;
+
+      await _upsertProfileRow(
+        userId: existing.id,
+        email: existing.email.isNotEmpty ? existing.email : user.email ?? '',
+        fullName: existing.fullName == 'User'
+            ? googleName ?? existing.fullName
+            : existing.fullName,
+        avatarUrl: existing.avatarUrl ?? googleAvatar,
+        roleTier: existing.roleTier,
+        roleTitle: existing.roleTitle,
+        municipalityId: existing.municipalityId,
+        barangayId: existing.barangayId,
+        isApproved: existing.isApproved,
+      );
+      return await _fetchProfile(user.id) ?? existing;
+    }
+
     final roleTier = UserProfile.parseRoleTier(meta['role_tier']);
     final isApproved = roleTier < 1;
     await _upsertProfileRow(
       userId: user.id,
       email: user.email ?? '',
-      fullName: fullName is String && fullName.isNotEmpty ? fullName : 'User',
+      fullName: googleName ?? 'User',
+      avatarUrl: googleAvatar,
       roleTier: roleTier,
       isApproved: isApproved,
     );
@@ -607,6 +682,17 @@ class MockAuthService implements AuthService {
   }
 
   @override
+  Future<UserProfile?> completeGoogleSignIn({
+    List<String> onboardingInterests = const [],
+  }) async {
+    if (_user == null) await signInWithGoogle();
+    if (onboardingInterests.isNotEmpty) {
+      await setUserInterests(_user!.id, onboardingInterests);
+    }
+    return _user;
+  }
+
+  @override
   Future<UserProfile> verifySignupOtp(String email, String token) async {
     if (token.trim().length != 6) {
       throw Exception('Enter the 6-digit code from your email.');
@@ -653,4 +739,35 @@ class MockAuthService implements AuthService {
   List<String> _interests = const [];
 
   bool _interestsSaved = false;
+}
+
+/// Converts raw Supabase / platform auth errors into a short, user-friendly
+/// sentence suitable for a SnackBar. Used by both Google OAuth and email/OTP
+/// screens so cancelled popups and offline errors never surface as stack traces.
+String friendlyAuthMessage(Object error) {
+  final text = error.toString().toLowerCase();
+  if (text.contains('cancel') ||
+      text.contains('popup') ||
+      text.contains('closed') ||
+      text.contains('aborted')) {
+    return 'Google sign-in was cancelled. Please try again.';
+  }
+  if (text.contains('network') ||
+      text.contains('socket') ||
+      text.contains('connection') ||
+      text.contains('timed out') ||
+      text.contains('failed to host')) {
+    return 'A network problem interrupted sign-in. Check your connection and try again.';
+  }
+  if (text.contains('not confirmed') || text.contains('confirmation')) {
+    return 'Please confirm your email address before signing in.';
+  }
+  if (text.contains('invalid login credentials') ||
+      text.contains('invalid email or password')) {
+    return 'That email or password is incorrect.';
+  }
+  if (error is AuthException && error.message.isNotEmpty) {
+    return error.message;
+  }
+  return 'Sign-in failed. Please try again.';
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/tourism_images.dart';
 import 'app_motion.dart';
+import 'promotion_reason_pill.dart';
 
 /// Reusable event card.
 ///
@@ -26,6 +27,10 @@ class EventCard extends StatelessWidget {
 
   /// Interest-based boost: shows the "Recommended for You" badge.
   final bool isRecommended;
+
+  /// Short explainable reason (e.g. "Featured · Hidden Gem Municipality")
+  /// rendered as a transparent pill so fair-promotion decisions are visible.
+  final String? promotionReason;
   final VoidCallback onTap;
   final VoidCallback? onToggleSave;
 
@@ -46,6 +51,7 @@ class EventCard extends StatelessWidget {
     this.isFeatured = false,
     this.isSaved = false,
     this.isRecommended = false,
+    this.promotionReason,
     required this.onTap,
     this.onToggleSave,
     this.heroTag,
@@ -164,6 +170,10 @@ class EventCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (promotionReason != null) ...[
+                    const SizedBox(height: 6),
+                    PromotionReasonPill(text: promotionReason!),
+                  ],
                 ],
               ),
             ),

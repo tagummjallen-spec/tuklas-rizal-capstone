@@ -7,7 +7,9 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/auth_gate.dart';
 import '../../../core/utils/interest_matcher.dart';
 import '../../../core/utils/maps_launcher.dart';
+import '../../../core/utils/promotion_reason.dart';
 import '../../../core/utils/tourism_images.dart';
+import '../../../core/widgets/ai_guide_button.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/poi_card.dart';
 import '../../../core/widgets/section_header.dart';
@@ -64,6 +66,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
         backgroundColor: const Color(0xFF033300),
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: const [AiGuideButton()],
       ),
       body: Column(
         children: [
@@ -232,6 +235,13 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                           isRecommended: recommended.matches(
                             p.categoryId,
                             labels.category(p.categoryId),
+                          ),
+                          promotionReason: poiPromotionReason(
+                            poi: p,
+                            isInterestMatch: recommended.matches(
+                              p.categoryId,
+                              labels.category(p.categoryId),
+                            ),
                           ),
                           isSaved: saved.isPoiSaved(p.id),
                           onToggleSave: () => _toggleSavedPoi(p),

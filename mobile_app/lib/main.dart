@@ -6,6 +6,8 @@ import 'core/providers/app_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'features/onboarding/onboarding_provider.dart';
+import 'features/geofence/geofence_alert_host.dart';
+import 'features/settings/location_consent.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +18,12 @@ void main() async {
     await Supabase.initialize(
       url: AppConstants.supabaseUrl,
       publishableKey: AppConstants.supabaseAnonKey,
+      // Explicit PKCE flow: the authorization code is exchanged using the
+      // verifier stored on device after the web-origin / mobile deep-link
+      // redirect returns from Google.
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
     );
   }
 
@@ -23,6 +31,10 @@ void main() async {
   // evaluates its initial redirect, so first-time launches land directly on
   // the four-step welcome flow instead of briefly showing Home.
   await onboardingController.load();
+
+  // RA 10173 consent is restored before the geofence host mounts, so GPS is
+  // never requested implicitly on startup.
+  await locationConsentController.load();
 
   runApp(const ProviderScope(child: TuklasRizalApp()));
 }
@@ -76,7 +88,9 @@ class TuklasRizalApp extends ConsumerWidget {
           data: media.copyWith(
             textScaler: TextScaler.linear(settings.textScale),
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: GeofenceAlertHost(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

@@ -19,6 +19,16 @@ export function roleTitleFor(tier: number): string {
   return TIER_LABELS[tier] ?? TIER_LABELS[0];
 }
 
+/**
+ * Effective approval check. The live `public.users` table stores
+ * `is_approved`; the optional audit migration adds `approval_status`. Accept
+ * either signal so Google / email LGU sign-ins are gated consistently even
+ * before that migration is applied.
+ */
+export function isApprovedProfile(profile: UserProfile): boolean {
+  return profile.is_approved === true || profile.approval_status === 'approved';
+}
+
 /** Province-wide oversight — every municipality is in scope. */
 export function isProvincial(profile: UserProfile): boolean {
   return profile.role_tier >= 4;
@@ -55,7 +65,7 @@ export function canAdministerProvince(profile: UserProfile): boolean {
 
 /** Tier 4 only: assign municipality + access level, approve or revoke. */
 export function canApproveUsers(profile: UserProfile): boolean {
-  return profile.role_tier >= 4 && profile.is_approved;
+  return profile.role_tier >= 4 && isApprovedProfile(profile);
 }
 
 /** Human-readable access level, e.g. "Level 2 — Tourism Coordinator". */

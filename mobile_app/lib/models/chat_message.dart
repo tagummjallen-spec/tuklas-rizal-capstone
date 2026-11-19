@@ -7,6 +7,10 @@ class ChatMessage {
   final List<String>? sources;
   final DateTime createdAt;
 
+  /// True when this bubble reports a transport/offline error rather than an
+  /// answer from the live Edge Function.
+  final bool isError;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -14,6 +18,7 @@ class ChatMessage {
     this.municipality,
     this.sources,
     required this.createdAt,
+    this.isError = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -24,6 +29,7 @@ class ChatMessage {
       municipality: json['municipality'] as String?,
       sources: (json['sources'] as List<dynamic>?)?.cast<String>(),
       createdAt: DateTime.parse(json['created_at'] as String),
+      isError: json['is_error'] as bool? ?? false,
     );
   }
 
@@ -35,6 +41,7 @@ class ChatMessage {
       'municipality': municipality,
       'sources': sources,
       'created_at': createdAt.toIso8601String(),
+      'is_error': isError,
     };
   }
 }
