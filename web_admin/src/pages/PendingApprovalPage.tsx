@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { AccessRequestModal } from '../components/AccessRequestModal';
 import { Icon } from '../components/Icon';
 import { Badge, Button, Card } from '../components/ui';
 import { TIER_LABELS } from '../lib/rbac';
@@ -15,6 +17,7 @@ export default function PendingApprovalPage({
   municipalities,
   onSignOut,
 }: PendingApprovalPageProps) {
+  const [requestOpen, setRequestOpen] = useState(false);
   const municipality = municipalities.find((item) => item.id === profile.municipality_id);
   const roleLabel = TIER_LABELS[profile.role_tier] ?? 'LGU Staff';
 
@@ -100,15 +103,26 @@ export default function PendingApprovalPage({
               Provincial IT Admin with your registered address and LGU designation.
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" onClick={onSignOut}>
                 <Icon name="logout" className="h-4 w-4" />
                 Sign out
+              </Button>
+              <Button onClick={() => setRequestOpen(true)}>
+                <Icon name="shield" className="h-4 w-4" />
+                Upload verification documents
               </Button>
             </div>
           </div>
         </Card>
       </div>
+
+      <AccessRequestModal
+        open={requestOpen}
+        onClose={() => setRequestOpen(false)}
+        profile={profile}
+        municipalities={municipalities}
+      />
     </div>
   );
 }

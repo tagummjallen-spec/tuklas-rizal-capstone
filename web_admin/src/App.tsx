@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { Alert, Button, Card, Spinner } from './components/ui';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useLookups } from './hooks/useLookups';
+import { usePendingApprovals } from './hooks/usePendingApprovals';
 import { NAV_ITEMS, type ViewKey } from './lib/rbac';
 import DashboardPage from './pages/DashboardPage';
 import EventsPage from './pages/EventsPage';
@@ -11,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import PendingApprovalPage from './pages/PendingApprovalPage';
 import PoisPage from './pages/PoisPage';
 import PromotePage from './pages/PromotePage';
+import UserApprovalsPage from './pages/UserApprovalsPage';
 
 function Splash({ label }: { label: string }) {
   return (
@@ -27,6 +29,11 @@ function Portal() {
   const { session, profile, loading, error, signOut, refreshProfile } = useAuth();
   const lookups = useLookups();
   const [view, setView] = useState<ViewKey>('dashboard');
+  const [pendingRefresh, setPendingRefresh] = useState(0);
+  const pendingApprovals = usePendingApprovals(
+    Boolean(profile && profile.role_tier >= 4 && profile.is_approved),
+    `${view}-${pendingRefresh}`,
+  );
 
   if (!session) {
     return (
@@ -85,6 +92,7 @@ function Portal() {
       onNavigate={setView}
       municipalities={lookups.municipalities}
       onSignOut={() => void signOut()}
+      pendingApprovals={pendingApprovals}
     >
       {activeView === 'dashboard' ? (
         <DashboardPage profile={profile} lookups={lookups} onNavigate={setView} />
@@ -100,6 +108,13 @@ function Portal() {
       ) : null}
       {activeView === 'promote' ? (
         <PromotePage profile={profile} lookups={lookups} />
+      ) : null}
+      {activeView === 'users' ? (
+        <UserApprovalsPage
+          profile={profile}
+          lookups={lookups}
+          onReviewed={() => setPendingRefresh((value) => value + 1)}
+        />
       ) : null}
     </Layout>
   );

@@ -19,7 +19,28 @@ export interface UserProfile {
   is_approved: boolean;
   created_at: string;
   updated_at: string;
+  /**
+   * Audit columns provisioned by `supabase/admin_user_approvals.sql`.
+   * Optional so the portal keeps working before that migration is applied.
+   */
+  approval_status?: ApprovalStatus | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  /** Applicant-submitted verification request (admin_user_approvals.sql). */
+  requested_role_tier?: number | null;
+  requested_municipality?: string | null;
+  department_office?: string | null;
+  official_position?: string | null;
+  contact_number?: string | null;
+  request_reason?: string | null;
+  verification_doc_urls?: string[] | null;
+  review_notes?: string | null;
+  verified_lgu_id?: boolean | null;
+  verified_endorsement?: boolean | null;
+  requested_at?: string | null;
 }
+
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 /** public.municipalities */
 export interface Municipality {

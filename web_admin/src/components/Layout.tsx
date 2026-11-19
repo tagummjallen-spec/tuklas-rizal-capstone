@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from './Icon';
-import { Badge } from './ui';
+import { AccessRequestModal } from './AccessRequestModal';
+import { Badge, Button, Modal } from './ui';
 import {
   NAV_ITEMS,
   TIER_LABELS,
@@ -16,6 +17,8 @@ interface LayoutProps {
   onNavigate: (view: ViewKey) => void;
   municipalities: Municipality[];
   onSignOut: () => void;
+  /** Live pending-approval count shown next to Admin & User Approvals. */
+  pendingApprovals?: number;
   children: ReactNode;
 }
 
@@ -25,9 +28,12 @@ export function Layout({
   onNavigate,
   municipalities,
   onSignOut,
+  pendingApprovals = 0,
   children,
 }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [accessRequestOpen, setAccessRequestOpen] = useState(false);
 
   const items = NAV_ITEMS.filter((item) => item.visible(profile));
   const activeItem = items.find((item) => item.key === active) ?? items[0];
@@ -36,6 +42,7 @@ export function Layout({
     ? `Province-wide · ${municipalities.length || 14} municipalities`
     : municipality?.name ?? 'Municipality not assigned';
   const roleLabel = TIER_LABELS[profile.role_tier] ?? 'LGU Staff';
+  const canRequestHigherAccess = profile.role_tier <= 3;
   const initials =
     profile.full_name
       .split(' ')
@@ -66,9 +73,10 @@ export function Layout({
         <p className="mt-0.5 text-[11px] text-gold">{roleLabel}</p>
       </div>
 
-      <nav className="mt-6 flex-1 space-y-1 px-3">
+      <nav className="mt-6 flex-1 space-y-1 overflow-y-auto px-3">
         {items.map((item) => {
           const selected = item.key === active;
+          const showBadge = item.key === 'users' && pendingApprovals > 0;
           return (
             <button
               key={item.key}
@@ -83,8 +91,18 @@ export function Layout({
                   : 'text-white/75 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon name={item.icon} className="h-5 w-5" />
-              {item.label}
+              <Icon name={item.icon} className="h-5 w-5 shrink-0" />
+              <span className="flex-1">{item.label}</span>
+              {showBadge ? (
+                <span
+                  className={`inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    selected ? 'bg-forest text-gold' : 'bg-gold text-forest'
+                  }`}
+                  aria-label={`${pendingApprovals} pending approval`}
+                >
+                  {pendingApprovals > 99 ? '99+' : pendingApprovals}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -100,10 +118,26 @@ export function Layout({
             <p className="truncate text-[11px] text-white/60">{profile.email}</p>
           </div>
         </div>
+        {canRequestHigherAccess ? (
+          <button
+            type="button"
+            onClick={() => {
+              setAccessRequestOpen(true);
+              setMobileOpen(false);
+            }}
+            className="mt-3 flex w-full items-center gap-2 rounded-lg bg-white/5 px-2 py-2 text-xs font-semibold text-gold transition hover:bg-white/10"
+          >
+            <Icon name="shield" className="h-4 w-4" />
+            Request higher access
+          </button>
+        ) : null}
         <button
           type="button"
-          onClick={onSignOut}
-          className="mt-3 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+          onClick={() => {
+            setConfirmSignOut(true);
+            setMobileOpen(false);
+          }}
+          className="mt-2 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
         >
           <Icon name="logout" className="h-4 w-4" />
           Sign out
@@ -166,6 +200,42 @@ export function Layout({
           Rizal
         </footer>
       </div>
+
+      <Modal
+        open={confirmSignOut}
+        title="Sign out of the portal?"
+        onClose={() => setConfirmSignOut(false)}
+        width="max-w-md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmSignOut(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirmSignOut(false);
+                onSignOut();
+              }}
+            >
+              <Icon name="logout" className="h-4 w-4" />
+              Sign Out
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          Are you sure you want to sign out of TuklasRizal LGU Web Admin? Any
+          unsaved draft will be discarded.
+        </p>
+      </Modal>
+
+      <AccessRequestModal
+        open={accessRequestOpen}
+        onClose={() => setAccessRequestOpen(false)}
+        profile={profile}
+        municipalities={municipalities}
+      />
     </div>
   );
 }

@@ -53,6 +53,17 @@ export function canAdministerProvince(profile: UserProfile): boolean {
   return profile.role_tier >= 4;
 }
 
+/** Tier 4 only: assign municipality + access level, approve or revoke. */
+export function canApproveUsers(profile: UserProfile): boolean {
+  return profile.role_tier >= 4 && profile.is_approved;
+}
+
+/** Human-readable access level, e.g. "Level 2 — Tourism Coordinator". */
+export function accessLevelLabel(tier: number): string {
+  const level = Math.min(Math.max(tier, 0), 4);
+  return `Level ${level <= 1 ? 1 : level} — ${TIER_LABELS[level] ?? TIER_LABELS[0]}`;
+}
+
 /** Tier 1 events are always created as drafts. */
 export function forcedEventStatus(profile: UserProfile): 'draft' | null {
   return profile.role_tier <= 1 ? 'draft' : null;
@@ -75,7 +86,13 @@ export interface NavItem {
   visible: (profile: UserProfile) => boolean;
 }
 
-export type ViewKey = 'dashboard' | 'events' | 'pois' | 'inquiries' | 'promote';
+export type ViewKey =
+  | 'dashboard'
+  | 'events'
+  | 'pois'
+  | 'inquiries'
+  | 'promote'
+  | 'users';
 
 export type IconKey =
   | 'dashboard'
@@ -91,7 +108,8 @@ export type IconKey =
   | 'broadcast'
   | 'shield'
   | 'image'
-  | 'menu';
+  | 'menu'
+  | 'users';
 
 export const NAV_ITEMS: NavItem[] = [
   { key: 'dashboard', label: 'Overview Dashboard', icon: 'dashboard', visible: () => true },
@@ -107,6 +125,12 @@ export const NAV_ITEMS: NavItem[] = [
     key: 'promote',
     label: 'Promote Towns and Events',
     icon: 'promote',
+    visible: canAdministerProvince,
+  },
+  {
+    key: 'users',
+    label: 'Admin & User Approvals',
+    icon: 'users',
     visible: canAdministerProvince,
   },
 ];
