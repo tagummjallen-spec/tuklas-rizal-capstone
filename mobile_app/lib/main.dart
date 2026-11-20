@@ -9,6 +9,7 @@ import 'core/router/app_router.dart';
 import 'features/onboarding/onboarding_provider.dart';
 import 'features/geofence/geofence_alert_host.dart';
 import 'features/settings/location_consent.dart';
+import 'services/oauth_deep_link.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,12 @@ void main() async {
         authFlowType: AuthFlowType.pkce,
       ),
     );
+
+    // Google sign-in on Android/iOS returns through
+    // io.supabase.tuklasrizal://login-callback. Exchange that code for a
+    // session before the first frame so the app opens signed in instead of
+    // falling back to a browser/Web Admin page.
+    await listenForOAuthDeepLinks();
   }
 
   // Resolve the persisted `has_completed_onboarding` flag before GoRouter

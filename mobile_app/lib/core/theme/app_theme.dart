@@ -100,7 +100,24 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: provincialGreen,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -114,7 +131,8 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -235,7 +253,24 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: darkEmerald,
+          foregroundColor: darkEmeraldInk,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -249,7 +284,8 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

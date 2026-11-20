@@ -22,6 +22,9 @@ dependencies:
   # Navigation: structured declarative GoRouter
   go_router: ^14.2.0
 
+  # Inbound deep links: returns the Google OAuth code to the Android/iOS app
+  app_links: ^7.2.2
+
   # Typography: Google Fonts
   google_fonts: ^6.2.1
 

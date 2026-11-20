@@ -364,7 +364,13 @@ class SupabaseAuthService implements AuthService {
     // Mobile: the registered deep link that returns to the app.
     // Google on mobile must open in an external browser so the deep link can
     // return to the app; on web stay in this tab for the code exchange.
-    final redirectTo = AppConstants.oauthRedirectUrl;
+    // Platform-specific return target: the web origin (trailing slash, no hash
+    // route) for the browser flow, and the registered app deep link on
+    // Android/iOS. Never the Vercel Web Admin origin. Both values must be
+    // allowlisted in Supabase -> Authentication -> URL Configuration.
+    final redirectTo = kIsWeb
+        ? '${Uri.base.origin}/'
+        : 'io.supabase.tuklasrizal://login-callback';
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: redirectTo,

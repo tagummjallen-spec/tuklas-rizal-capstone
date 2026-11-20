@@ -27,8 +27,11 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Google OAuth return link: io.supabase.tuklasrizal://login-callback -->
-            <intent-filter>
+            <!-- Google OAuth return link: io.supabase.tuklasrizal://login-callback.
+                 Custom scheme, so no App Links verification is required or
+                 wanted: autoVerify stays off. This is the only filter that
+                 claims that scheme/host, so nothing hijacks the callback. -->
+            <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
