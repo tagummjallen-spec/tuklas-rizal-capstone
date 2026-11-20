@@ -70,11 +70,12 @@ class AuthRedirectNotifier extends ChangeNotifier {
 
 final AuthRedirectNotifier authRedirectNotifier = AuthRedirectNotifier();
 
-/// Root navigator. Routes that must cover the whole screen (the AI Tour Guide
-/// chat, which needs the height for messages and the keyboard) are pushed here
-/// instead of inside the bottom-navigation shell.
-final GlobalKey<NavigatorState> _rootNavigatorKey =
-    GlobalKey<NavigatorState>(debugLabel: 'root');
+/// Root navigator, used for the auth and onboarding flows that must cover the
+/// whole screen. Authenticated content lives inside the shell route below so
+/// the five-tab bar stays visible everywhere.
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
 
 /// GoRouter configuration with a BottomNavigationBar shell.
 ///
@@ -90,7 +91,10 @@ final GoRouter appRouter = GoRouter(
   debugLogDiagnostics: false,
   // Re-evaluate the redirect whenever onboarding completes or is replayed, and
   // whenever the auth session appears or disappears.
-  refreshListenable: Listenable.merge([onboardingController, authRedirectNotifier]),
+  refreshListenable: Listenable.merge([
+    onboardingController,
+    authRedirectNotifier,
+  ]),
   redirect: (context, state) {
     // `main.dart` awaits the persisted flag before the app starts; this guard
     // only matters if the controller is somehow used before that finishes.
@@ -213,22 +217,21 @@ final GoRouter appRouter = GoRouter(
             child: const NotificationsPage(),
           ),
         ),
+        // AI Tour Guide — inside the shell so the Home / Explore / Events /
+        // Saved / Profile tabs stay visible under the conversation.
+        GoRoute(
+          path: '/assistant',
+          name: 'assistant',
+          pageBuilder: (context, state) {
+            final question = state.uri.queryParameters['q'];
+            return fadeSlidePage(
+              context: context,
+              state: state,
+              child: AssistantPage(initialQuestion: question),
+            );
+          },
+        ),
       ],
-    ),
-    // AI Tour Guide — full-screen on the root navigator so the five-tab bar
-    // never crowds the conversation or the keyboard.
-    GoRoute(
-      path: '/assistant',
-      name: 'assistant',
-      parentNavigatorKey: _rootNavigatorKey,
-      pageBuilder: (context, state) {
-        final question = state.uri.queryParameters['q'];
-        return fadeSlidePage(
-          context: context,
-          state: state,
-          child: AssistantPage(initialQuestion: question),
-        );
-      },
     ),
     // Auth routes (outside shell) — all defined in login_page.dart
     GoRoute(

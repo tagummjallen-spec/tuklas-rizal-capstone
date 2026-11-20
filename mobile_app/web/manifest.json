@@ -1,11 +1,11 @@
 {
-    "name": "tuklas_rizal",
-    "short_name": "tuklas_rizal",
+    "name": "Tuklas Rizal",
+    "short_name": "Tuklas Rizal",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B3B17",
+    "theme_color": "#0B3B17",
+    "description": "TuklasRizal: culture, arts and tourism guide for the Province of Rizal.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

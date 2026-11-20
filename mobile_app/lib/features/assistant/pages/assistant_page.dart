@@ -22,10 +22,10 @@ const List<String> _starterPrompts = <String>[
 /// Live AI Tour Guide — Groq + Gemini fallback RAG answers grounded in the
 /// approved events, POIs and tourism-office records stored in Supabase.
 ///
-/// The screen owns the whole viewport (it is pushed on the root navigator, so
-/// the five-tab bar never eats the chat area). The guide banner lives in a
-/// floating [SliverAppBar]: scrolling the conversation up slides it away and
-/// gives the messages the full height back.
+/// The screen sits inside the bottom-navigation shell, so the five tabs stay
+/// reachable while chatting. The green guide banner is the first scrollable
+/// block under a compact floating [SliverAppBar]: swiping up slides both out of
+/// the way and gives the messages the full height back.
 class AssistantPage extends ConsumerStatefulWidget {
   const AssistantPage({super.key, this.initialQuestion});
 
@@ -118,10 +118,21 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // Let the composer ride above the on-screen keyboard.
+      resizeToAvoidBottomInset: true,
       body: CustomScrollView(
         controller: _scrollCtrl,
         slivers: [
-          _buildCollapsibleHeader(chat),
+          _buildToolbar(chat),
+          // The guide banner is the first scrollable block: it sits directly
+          // under the toolbar with no reserved green area above it.
+          SliverToBoxAdapter(
+            child: _GuideBanner(
+              municipality: _municipality,
+              onMunicipalityChanged: (value) =>
+                  setState(() => _municipality = value),
+            ),
+          ),
           StreamBuilder<List<ChatMessage>>(
             stream: chat.messages,
             builder: (context, snap) {
@@ -129,7 +140,9 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
               if (messages.isEmpty) {
                 return SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _StarterPanel(onStarterTap: (text) => _send(chat, text)),
+                  child: _StarterPanel(
+                    onStarterTap: (text) => _send(chat, text),
+                  ),
                 );
               }
               _scrollToLatest();
@@ -163,22 +176,22 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
     );
   }
 
-  /// Floating, snapping (unpinned) app bar: it is visible at the top of the
-  /// conversation and slides out of the way as soon as the visitor scrolls up,
-  /// then returns on the first downward swipe.
-  Widget _buildCollapsibleHeader(RagChatService chat) {
+  /// Compact, snapping (unpinned) toolbar: title and clear-chat action only.
+  /// It slides out of the way on the first upward swipe and returns when the
+  /// visitor scrolls back down.
+  Widget _buildToolbar(RagChatService chat) {
     return SliverAppBar(
       floating: true,
       snap: true,
       pinned: false,
-      expandedHeight: 232,
+      toolbarHeight: 52,
       backgroundColor: _forest,
       surfaceTintColor: Colors.transparent,
       foregroundColor: Colors.white,
       elevation: 0,
       scrolledUnderElevation: 0,
-      centerTitle: true,
-      titleSpacing: 0,
+      centerTitle: false,
+      titleSpacing: 16,
       title: Text(
         'AI Tour Guide',
         style: GoogleFonts.plusJakartaSans(
@@ -194,14 +207,6 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
           onPressed: _clearing ? null : () => _confirmClear(chat),
         ),
       ],
-      flexibleSpace: FlexibleSpaceBar(
-        collapseMode: CollapseMode.parallax,
-        background: _GuideHeader(
-          municipality: _municipality,
-          onMunicipalityChanged: (value) =>
-              setState(() => _municipality = value),
-        ),
-      ),
     );
   }
 
@@ -232,7 +237,9 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
       }
       if (mounted) _showInputHint('Type your question again to retry.');
     } catch (_) {
-      if (mounted) _showInputHint('Could not retry just now. Please try again.');
+      if (mounted) {
+        _showInputHint('Could not retry just now. Please try again.');
+      }
     } finally {
       if (mounted) setState(() => _retrying = false);
     }
@@ -264,20 +271,20 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
 
   void _showInputHint(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: _forest),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: _forest));
   }
 }
 
 /// Green banner with the guide title, the trust line and the focus-town
-/// selector. It is the `background` of the floating [SliverAppBar], so it
-/// collapses together with the bar.
-class _GuideHeader extends StatelessWidget {
+/// selector. It scrolls with the conversation as the first sliver, directly
+/// beneath the compact toolbar — no reserved empty header space above it.
+class _GuideBanner extends StatelessWidget {
   final String? municipality;
   final ValueChanged<String?> onMunicipalityChanged;
 
-  const _GuideHeader({
+  const _GuideBanner({
     required this.municipality,
     required this.onMunicipalityChanged,
   });
@@ -295,142 +302,134 @@ class _GuideHeader extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.only(top: kToolbarHeight),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFC800),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Color(0xFF033300),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(9),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFC800),
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome,
-                        color: Color(0xFF033300),
-                        size: 22,
+                    Text(
+                      'TuklasRizal Provincial Tourism Guide',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'TuklasRizal Provincial Tourism Guide',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Verified events, heritage sites, routes & contacts',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              color: Colors.white70,
-                              fontSize: 11,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 2),
+                    Text(
+                      'Verified events, heritage sites, routes & contacts',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.filter_alt_outlined,
-                      color: Color(0xFFFFC800),
-                      size: 15,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(
+                Icons.filter_alt_outlined,
+                color: Color(0xFFFFC800),
+                size: 15,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Focus town:',
+                style: TextStyle(color: Colors.white70, fontSize: 11.5),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
                     ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Focus town:',
-                      style: TextStyle(color: Colors.white70, fontSize: 11.5),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        height: 38,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        decoration: BoxDecoration(
-                          color: scheme.surfaceContainerHigh,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.22),
-                          ),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String?>(
-                            value: municipality,
-                            isExpanded: true,
-                            isDense: true,
-                            dropdownColor: scheme.surfaceContainerHigh,
-                            borderRadius: BorderRadius.circular(10),
-                            icon: Icon(
-                              Icons.expand_more,
-                              color: scheme.onSurfaceVariant,
-                              size: 20,
-                            ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      value: municipality,
+                      isExpanded: true,
+                      isDense: true,
+                      dropdownColor: scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(10),
+                      icon: Icon(
+                        Icons.expand_more,
+                        color: scheme.onSurfaceVariant,
+                        size: 20,
+                      ),
+                      style: GoogleFonts.inter(
+                        color: scheme.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text(
+                            'All 14 municipalities',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.inter(
                               color: scheme.onSurface,
                               fontSize: 13,
-                              fontWeight: FontWeight.w500,
                             ),
-                            items: [
-                              DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text(
-                                  'All 14 municipalities',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    color: scheme.onSurface,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                              for (final town in RizalMunicipalities.all)
-                                DropdownMenuItem<String?>(
-                                  value: town.name,
-                                  child: Text(
-                                    town.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.inter(
-                                      color: scheme.onSurface,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                            onChanged: onMunicipalityChanged,
                           ),
                         ),
-                      ),
+                        for (final town in RizalMunicipalities.all)
+                          DropdownMenuItem<String?>(
+                            value: town.name,
+                            child: Text(
+                              town.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                color: scheme.onSurface,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged: onMunicipalityChanged,
                     ),
-                  ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -797,10 +796,7 @@ class _AssistantRichText extends StatelessWidget {
       if (_isBullet(line)) {
         while (i < lines.length && _isBullet(lines[i].trim())) {
           blocks.add(
-            _BulletLine(
-              text: _clean(lines[i].trim()),
-              bodyColor: bodyColor,
-            ),
+            _BulletLine(text: _clean(lines[i].trim()), bodyColor: bodyColor),
           );
           i++;
         }
@@ -1006,9 +1002,7 @@ class _AiItemCardState extends State<_AiItemCard> {
           ),
           const SizedBox(width: 6),
           Material(
-            color: isSaved
-                ? context.tuklasForestInk
-                : context.tuklasSurface,
+            color: isSaved ? context.tuklasForestInk : context.tuklasSurface,
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -1040,10 +1034,7 @@ class _AiItemCardState extends State<_AiItemCard> {
                       }
                     },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
@@ -1098,10 +1089,7 @@ class _AiItemCardState extends State<_AiItemCard> {
                       }
                     },
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1214,108 +1202,106 @@ class _Composer extends StatelessWidget {
         color: context.tuklasSurface,
         border: Border(top: BorderSide(color: context.tuklasHairline)),
       ),
-      padding: EdgeInsets.fromLTRB(
-        12,
-        8,
-        12,
-        MediaQuery.viewPaddingOf(context).bottom + 8,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              enabled: !sending,
-              textInputAction: TextInputAction.send,
-              onSubmitted: sending ? null : onSubmitted,
-              minLines: 1,
-              maxLines: 4,
-              maxLength: maxChars,
-              style: TextStyle(fontSize: 14, color: context.tuklasInk),
-              cursorColor: scheme.primary,
-              // Hidden until the message gets long, then shown small and muted.
-              buildCounter:
-                  (
-                    context, {
-                    required int currentLength,
-                    required bool isFocused,
-                    required int? maxLength,
-                  }) {
-                    if (currentLength <= _counterThreshold) return null;
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 2, left: 4),
-                      child: Text(
-                        '$currentLength/$maxChars',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: context.tuklasMuted,
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                enabled: !sending,
+                textInputAction: TextInputAction.send,
+                onSubmitted: sending ? null : onSubmitted,
+                minLines: 1,
+                maxLines: 4,
+                maxLength: maxChars,
+                style: TextStyle(fontSize: 14, color: context.tuklasInk),
+                cursorColor: scheme.primary,
+                // Hidden until the message gets long, then shown small and muted.
+                buildCounter:
+                    (
+                      context, {
+                      required int currentLength,
+                      required bool isFocused,
+                      required int? maxLength,
+                    }) {
+                      if (currentLength <= _counterThreshold) return null;
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 2, left: 4),
+                        child: Text(
+                          '$currentLength/$maxChars',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: context.tuklasMuted,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-              decoration: InputDecoration(
-                hintText: 'Ask about Rizal...',
-                hintStyle: TextStyle(
-                  color: context.tuklasMuted,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                ),
-                hintMaxLines: 1,
-                isDense: true,
-                filled: true,
-                fillColor: context.tuklasSurfaceAlt,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide(color: context.tuklasHairline),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide(color: context.tuklasHairline),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide(color: scheme.primary, width: 1.6),
+                      );
+                    },
+                decoration: InputDecoration(
+                  hintText: 'Ask about Rizal...',
+                  hintStyle: TextStyle(
+                    color: context.tuklasMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  hintMaxLines: 1,
+                  isDense: true,
+                  filled: true,
+                  fillColor: context.tuklasSurfaceAlt,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(color: context.tuklasHairline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(color: context.tuklasHairline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(color: scheme.primary, width: 1.6),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 44,
-            height: 44,
-            child: Material(
-              color: const Color(0xFFFFC800),
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: sending
-                    ? null
-                    : () => onSubmitted(controller.text.trim()),
-                child: Center(
-                  child: sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Material(
+                color: const Color(0xFFFFC800),
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: sending
+                      ? null
+                      : () => onSubmitted(controller.text.trim()),
+                  child: Center(
+                    child: sending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF033300),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 20,
                             color: Color(0xFF033300),
                           ),
-                        )
-                      : const Icon(
-                          Icons.arrow_upward_rounded,
-                          size: 20,
-                          color: Color(0xFF033300),
-                        ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
