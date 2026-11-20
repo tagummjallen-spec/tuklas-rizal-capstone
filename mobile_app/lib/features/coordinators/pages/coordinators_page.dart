@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/theme/tuklas_colors.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -382,7 +384,7 @@ class _DirectorySearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -442,11 +444,11 @@ class _DistrictChip extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onTap(),
         selectedColor: const Color(0xFF033300),
-        backgroundColor: Colors.white,
+        backgroundColor: context.tuklasSurface,
         labelStyle: TextStyle(
           fontSize: 11.5,
           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          color: selected ? Colors.white : const Color(0xFF4A4A4A),
+          color: selected ? Colors.white : context.tuklasInk,
         ),
         side: BorderSide(
           color: selected ? const Color(0xFF033300) : const Color(0xFFE5E5E5),
@@ -575,7 +577,7 @@ class _InquiryReplyCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -586,9 +588,9 @@ class _InquiryReplyCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   inquiry.subject,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1B1B1B),
+                    color: context.tuklasInk,
                   ),
                 ),
               ),
@@ -608,7 +610,7 @@ class _InquiryReplyCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFF7F6F2),
+                color: context.tuklasSurfaceAlt,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFFFC800)),
               ),
@@ -656,7 +658,7 @@ class _SubmitContentCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(18),
         border: Border(
           left: BorderSide(color: const Color(0xFFFFC800), width: 5),
@@ -831,7 +833,7 @@ class _MunicipalityOfficeCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: const Color(0xFF033300).withValues(alpha: 0.08),
@@ -877,11 +879,11 @@ class _MunicipalityOfficeCard extends StatelessWidget {
                       municipality.officeName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13.5,
                         height: 1.25,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1B1B1B),
+                        color: context.tuklasInk,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -1007,7 +1009,7 @@ class _PillAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: filled ? const Color(0xFF033300) : Colors.white,
+      color: filled ? const Color(0xFF033300) : context.tuklasSurface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -1036,7 +1038,11 @@ class _PillAction extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: filled ? Colors.white : const Color(0xFF033300),
+                  color: filled
+                      ? Colors.white
+                      : (context.tuklasIsDark
+                            ? const Color(0xFF8EE6A9)
+                            : const Color(0xFF033300)),
                 ),
               ),
             ],
@@ -1076,9 +1082,11 @@ class _TownProfileSheet extends StatelessWidget {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: context.tuklasSurface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(24),
+            ),
           ),
           child: ListView(
             controller: scrollController,
@@ -1153,7 +1161,7 @@ class _TownProfileSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF7F6F2),
+                  color: context.tuklasSurfaceAlt,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Column(
@@ -1171,10 +1179,10 @@ class _TownProfileSheet extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       municipality.officeName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1B1B1B),
+                        color: context.tuklasInk,
                       ),
                     ),
                     if (email.isNotEmpty) ...[
@@ -1289,7 +1297,7 @@ class _EmptyDirectory extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(

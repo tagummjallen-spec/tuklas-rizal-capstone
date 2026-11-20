@@ -70,6 +70,12 @@ class AuthRedirectNotifier extends ChangeNotifier {
 
 final AuthRedirectNotifier authRedirectNotifier = AuthRedirectNotifier();
 
+/// Root navigator. Routes that must cover the whole screen (the AI Tour Guide
+/// chat, which needs the height for messages and the keyboard) are pushed here
+/// instead of inside the bottom-navigation shell.
+final GlobalKey<NavigatorState> _rootNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'root');
+
 /// GoRouter configuration with a BottomNavigationBar shell.
 ///
 /// Routes mirror the mobile app feature flow from CAPSTONE_REQUIREMENTS.md.
@@ -79,6 +85,7 @@ final AuthRedirectNotifier authRedirectNotifier = AuthRedirectNotifier();
 /// files (login_page.dart, explore_page.dart, events_page.dart,
 /// coordinators_page.dart) to keep the scaffold compact.
 final GoRouter appRouter = GoRouter(
+  navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
   debugLogDiagnostics: false,
   // Re-evaluate the redirect whenever onboarding completes or is replayed, and
@@ -160,18 +167,6 @@ final GoRouter appRouter = GoRouter(
           ),
         ),
         GoRoute(
-          path: '/assistant',
-          name: 'assistant',
-          pageBuilder: (context, state) {
-            final question = state.uri.queryParameters['q'];
-            return fadeSlidePage(
-              context: context,
-              state: state,
-              child: AssistantPage(initialQuestion: question),
-            );
-          },
-        ),
-        GoRoute(
           path: '/profile',
           name: 'profile',
           pageBuilder: (context, state) => fadeSlidePage(
@@ -219,6 +214,21 @@ final GoRouter appRouter = GoRouter(
           ),
         ),
       ],
+    ),
+    // AI Tour Guide — full-screen on the root navigator so the five-tab bar
+    // never crowds the conversation or the keyboard.
+    GoRoute(
+      path: '/assistant',
+      name: 'assistant',
+      parentNavigatorKey: _rootNavigatorKey,
+      pageBuilder: (context, state) {
+        final question = state.uri.queryParameters['q'];
+        return fadeSlidePage(
+          context: context,
+          state: state,
+          child: AssistantPage(initialQuestion: question),
+        );
+      },
     ),
     // Auth routes (outside shell) — all defined in login_page.dart
     GoRoute(

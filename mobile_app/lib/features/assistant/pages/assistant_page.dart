@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/theme/tuklas_colors.dart';
 import '../../../models/chat_message.dart';
 import '../../../models/event_item.dart';
 import '../../../models/poi_logistics.dart';
@@ -20,6 +21,11 @@ const List<String> _starterPrompts = <String>[
 
 /// Live AI Tour Guide — Groq + Gemini fallback RAG answers grounded in the
 /// approved events, POIs and tourism-office records stored in Supabase.
+///
+/// The screen owns the whole viewport (it is pushed on the root navigator, so
+/// the five-tab bar never eats the chat area). The guide banner lives in a
+/// floating [SliverAppBar]: scrolling the conversation up slides it away and
+/// gives the messages the full height back.
 class AssistantPage extends ConsumerStatefulWidget {
   const AssistantPage({super.key, this.initialQuestion});
 
@@ -33,8 +39,10 @@ class AssistantPage extends ConsumerStatefulWidget {
 
 class _AssistantPageState extends ConsumerState<AssistantPage> {
   static const Color _forest = Color(0xFF033300);
+  static const int _maxChars = 500;
 
-  final _inputCtrl = TextEditingController();
+  // Always starts empty: no placeholder text is ever pre-filled.
+  final _inputCtrl = TextEditingController(text: '');
   final _scrollCtrl = ScrollController();
   String? _municipality;
   bool _sending = false;
@@ -69,102 +77,65 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
     super.dispose();
   }
 
+  Future<void> _confirmClear(RagChatService chat) async {
+    if (!mounted || _clearing) return;
+    setState(() => _clearing = true);
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Clear conversation?'),
+          content: const Text(
+            'This removes the chat bubbles on this device. '
+            'Your verified TuklasRizal records are not affected.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Clear'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (confirmed == true) await chat.clearHistory();
+      if (!mounted) return;
+    } catch (_) {
+      _showInputHint('Could not clear the chat. Please try again.');
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
     final chat = ref.read(ragChatServiceProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F6F2),
-      appBar: AppBar(
-        title: const Text('AI Tour Guide'),
-        centerTitle: true,
-        backgroundColor: _forest,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_sweep_outlined),
-            tooltip: 'Clear chat',
-            onPressed: _clearing
-                ? null
-                : () async {
-                    if (!mounted || _clearing) return;
-                    setState(() => _clearing = true);
-                    try {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Text('Clear conversation?'),
-                          content: const Text(
-                            'This removes the chat bubbles on this device. '
-                            'Your verified TuklasRizal records are not '
-                            'affected.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(dialogContext, false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(dialogContext, true),
-                              child: const Text('Clear'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (!mounted) return;
-                      if (confirmed == true) await chat.clearHistory();
-                      if (!mounted) return;
-                    } catch (_) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Could not clear the chat. Please try again.',
-                            ),
-                            backgroundColor: _forest,
-                          ),
-                        );
-                      }
-                    } finally {
-                      if (mounted) setState(() => _clearing = false);
-                    }
-                  },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _GuideHeader(
-            municipality: _municipality,
-            onMunicipalityChanged: (value) =>
-                setState(() => _municipality = value),
-          ),
-          Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: chat.messages,
-              builder: (context, snap) {
-                final messages = snap.data ?? const <ChatMessage>[];
-                if (messages.isEmpty) {
-                  return _StarterPanel(
-                    onStarterTap: (text) => _send(chat, text),
-                  );
-                }
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollCtrl.hasClients) {
-                    _scrollCtrl.animateTo(
-                      _scrollCtrl.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOut,
-                    );
-                  }
-                });
-                return ListView.builder(
-                  controller: _scrollCtrl,
-                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: CustomScrollView(
+        controller: _scrollCtrl,
+        slivers: [
+          _buildCollapsibleHeader(chat),
+          StreamBuilder<List<ChatMessage>>(
+            stream: chat.messages,
+            builder: (context, snap) {
+              final messages = snap.data ?? const <ChatMessage>[];
+              if (messages.isEmpty) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _StarterPanel(onStarterTap: (text) => _send(chat, text)),
+                );
+              }
+              _scrollToLatest();
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                sliver: SliverList.builder(
                   itemCount: messages.length + (_sending ? 1 : 0),
                   itemBuilder: (_, index) {
                     if (index == messages.length) {
@@ -177,18 +148,74 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
                           : null,
                     );
                   },
-                );
-              },
-            ),
-          ),
-          _Composer(
-            controller: _inputCtrl,
-            sending: _sending,
-            onSubmitted: (text) => _send(chat, text),
+                ),
+              );
+            },
           ),
         ],
       ),
+      bottomNavigationBar: _Composer(
+        controller: _inputCtrl,
+        sending: _sending,
+        maxChars: _maxChars,
+        onSubmitted: (text) => _send(chat, text),
+      ),
     );
+  }
+
+  /// Floating, snapping (unpinned) app bar: it is visible at the top of the
+  /// conversation and slides out of the way as soon as the visitor scrolls up,
+  /// then returns on the first downward swipe.
+  Widget _buildCollapsibleHeader(RagChatService chat) {
+    return SliverAppBar(
+      floating: true,
+      snap: true,
+      pinned: false,
+      expandedHeight: 232,
+      backgroundColor: _forest,
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      titleSpacing: 0,
+      title: Text(
+        'AI Tour Guide',
+        style: GoogleFonts.plusJakartaSans(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.delete_sweep_outlined),
+          tooltip: 'Clear chat',
+          onPressed: _clearing ? null : () => _confirmClear(chat),
+        ),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.parallax,
+        background: _GuideHeader(
+          municipality: _municipality,
+          onMunicipalityChanged: (value) =>
+              setState(() => _municipality = value),
+        ),
+      ),
+    );
+  }
+
+  void _scrollToLatest() {
+    if (!_scrollCtrl.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _retry(RagChatService chat) async {
@@ -203,23 +230,9 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
           return;
         }
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Type your question again to retry.'),
-            backgroundColor: _forest,
-          ),
-        );
-      }
+      if (mounted) _showInputHint('Type your question again to retry.');
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not retry just now. Please try again.'),
-            backgroundColor: _forest,
-          ),
-        );
-      }
+      if (mounted) _showInputHint('Could not retry just now. Please try again.');
     } finally {
       if (mounted) setState(() => _retrying = false);
     }
@@ -232,8 +245,8 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
       _showInputHint('Type a question before sending.');
       return;
     }
-    if (text.length > 500) {
-      _showInputHint('Messages must be 500 characters or fewer.');
+    if (text.length > _maxChars) {
+      _showInputHint('Messages must be $_maxChars characters or fewer.');
       return;
     }
     setState(() => _sending = true);
@@ -257,6 +270,9 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
   }
 }
 
+/// Green banner with the guide title, the trust line and the focus-town
+/// selector. It is the `background` of the floating [SliverAppBar], so it
+/// collapses together with the bar.
 class _GuideHeader extends StatelessWidget {
   final String? municipality;
   final ValueChanged<String?> onMunicipalityChanged;
@@ -268,6 +284,8 @@ class _GuideHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = context.tuklasScheme;
+
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -277,110 +295,142 @@ class _GuideHeader extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFC800),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  color: Color(0xFF033300),
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.only(top: kToolbarHeight),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      'TuklasRizal Provincial Tourism Guide',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFC800),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome,
+                        color: Color(0xFF033300),
+                        size: 22,
                       ),
                     ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Verified events, heritage sites, routes & contacts',
-                      style: GoogleFonts.inter(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        height: 1.5,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'TuklasRizal Provincial Tourism Guide',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Verified events, heritage sites, routes & contacts',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(
-                Icons.filter_alt_outlined,
-                color: Color(0xFFFFC800),
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'Focus town:',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: DropdownButton<String?>(
-                    value: municipality,
-                    isExpanded: true,
-                    underline: const SizedBox.shrink(),
-                    icon: const Icon(
-                      Icons.expand_more,
-                      color: Color(0xFF033300),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.filter_alt_outlined,
+                      color: Color(0xFFFFC800),
+                      size: 15,
                     ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text(
-                          'All 14 municipalities',
-                          style: TextStyle(
-                            color: Color(0xFF033300),
-                            fontSize: 13,
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Focus town:',
+                      style: TextStyle(color: Colors.white70, fontSize: 11.5),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.22),
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String?>(
+                            value: municipality,
+                            isExpanded: true,
+                            isDense: true,
+                            dropdownColor: scheme.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(10),
+                            icon: Icon(
+                              Icons.expand_more,
+                              color: scheme.onSurfaceVariant,
+                              size: 20,
+                            ),
+                            style: GoogleFonts.inter(
+                              color: scheme.onSurface,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            items: [
+                              DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text(
+                                  'All 14 municipalities',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    color: scheme.onSurface,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              for (final town in RizalMunicipalities.all)
+                                DropdownMenuItem<String?>(
+                                  value: town.name,
+                                  child: Text(
+                                    town.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      color: scheme.onSurface,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                            onChanged: onMunicipalityChanged,
                           ),
                         ),
                       ),
-                      for (final town in RizalMunicipalities.all)
-                        DropdownMenuItem<String?>(
-                          value: town.name,
-                          child: Text(
-                            town.name,
-                            style: const TextStyle(
-                              color: Color(0xFF033300),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                    ],
-                    onChanged: onMunicipalityChanged,
-                  ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -393,20 +443,21 @@ class _StarterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.tuklasSurface,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFFFC800), width: 1.5),
+              border: Border.all(color: context.tuklasGold, width: 1.5),
             ),
             child: Column(
               children: [
-                const Icon(Icons.tour, color: Color(0xFF033300), size: 44),
+                Icon(Icons.tour, color: context.tuklasForestInk, size: 40),
                 const SizedBox(height: 10),
                 Text(
                   'Kamusta! I am your Rizal tour guide.',
@@ -414,7 +465,7 @@ class _StarterPanel extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF033300),
+                    color: context.tuklasInk,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -426,13 +477,13 @@ class _StarterPanel extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     height: 1.5,
-                    color: const Color(0xFF6B6B6B),
+                    color: context.tuklasMuted,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -440,7 +491,7 @@ class _StarterPanel extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF033300),
+                color: context.tuklasInk,
               ),
             ),
           ),
@@ -471,7 +522,7 @@ class _StarterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: context.tuklasSurface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -480,22 +531,24 @@ class _StarterChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFFFC800)),
+            border: Border.all(
+              color: context.tuklasGold.withValues(alpha: 0.85),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.lightbulb_outline,
                 size: 15,
-                color: Color(0xFF033300),
+                color: context.tuklasForestInk,
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: const Color(0xFF033300),
+                  color: context.tuklasInk,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -517,6 +570,7 @@ class _ChatBubble extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isUser = message.isUser;
     final saved = ref.watch(savedPlacesProvider);
+    final isDark = context.tuklasIsDark;
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -545,12 +599,15 @@ class _ChatBubble extends ConsumerWidget {
                   maxWidth: MediaQuery.sizeOf(context).width * 0.78,
                 ),
                 decoration: BoxDecoration(
-                  // Warm off-white paper instead of a stark white bubble.
                   color: isUser
-                      ? const Color(0xFF033300)
+                      ? (isDark
+                            ? const Color(0xFF1F5A32)
+                            : const Color(0xFF033300))
                       : (message.isError
-                            ? const Color(0xFFFFF3E0)
-                            : const Color(0xFFFDFBF5)),
+                            ? (isDark
+                                  ? const Color(0xFF322410)
+                                  : const Color(0xFFFFF3E0))
+                            : context.tuklasSurface),
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
@@ -562,17 +619,8 @@ class _ChatBubble extends ConsumerWidget {
                       : Border.all(
                           color: message.isError
                               ? const Color(0xFFFFC800)
-                              : const Color(0xFFEDE6D3),
+                              : context.tuklasHairline,
                         ),
-                  boxShadow: isUser
-                      ? null
-                      : const [
-                          BoxShadow(
-                            color: Color(0x0A000000),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -600,7 +648,7 @@ class _ChatBubble extends ConsumerWidget {
                         'VERIFIED SOURCES · ${message.sources!.join('  ·  ')}',
                         style: GoogleFonts.inter(
                           fontSize: 9.5,
-                          color: const Color(0xFF8A8272),
+                          color: context.tuklasMuted,
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -618,8 +666,8 @@ class _ChatBubble extends ConsumerWidget {
                         icon: const Icon(Icons.refresh, size: 14),
                         label: const Text('Retry'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF033300),
-                          side: const BorderSide(color: Color(0xFF033300)),
+                          foregroundColor: context.tuklasForestInk,
+                          side: BorderSide(color: context.tuklasForestInk),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 4,
@@ -693,7 +741,7 @@ class _AssistantRichText extends StatelessWidget {
       .trim();
 
   /// Splits `**label**` runs into bold spans so labels read cleanly.
-  static List<InlineSpan> _spans(String text) {
+  static List<InlineSpan> _spans(String text, Color accent) {
     final spans = <InlineSpan>[];
     final pattern = RegExp(r'\*\*(.+?)\*\*');
     var last = 0;
@@ -704,10 +752,7 @@ class _AssistantRichText extends StatelessWidget {
       spans.add(
         TextSpan(
           text: match.group(1),
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF033300),
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800, color: accent),
         ),
       );
       last = match.end;
@@ -722,6 +767,12 @@ class _AssistantRichText extends StatelessWidget {
   Widget build(BuildContext context) {
     final lines = text.split(RegExp(r'\r?\n'));
     final blocks = <Widget>[];
+    final bodyColor = isError
+        ? (context.tuklasIsDark
+              ? const Color(0xFFFFD8A8)
+              : const Color(0xFF7A4B00))
+        : context.tuklasInk;
+    final accent = context.tuklasForestInk;
     var i = 0;
     while (i < lines.length) {
       final line = lines[i].trim();
@@ -737,13 +788,20 @@ class _AssistantRichText extends StatelessWidget {
       }
       if (_isTableRow(line)) {
         final row = _tableRowToText(line);
-        if (row.isNotEmpty) blocks.add(_BulletLine(text: row));
+        if (row.isNotEmpty) {
+          blocks.add(_BulletLine(text: row, bodyColor: bodyColor));
+        }
         i++;
         continue;
       }
       if (_isBullet(line)) {
         while (i < lines.length && _isBullet(lines[i].trim())) {
-          blocks.add(_BulletLine(text: _clean(lines[i].trim())));
+          blocks.add(
+            _BulletLine(
+              text: _clean(lines[i].trim()),
+              bodyColor: bodyColor,
+            ),
+          );
           i++;
         }
         continue;
@@ -755,7 +813,7 @@ class _AssistantRichText extends StatelessWidget {
             child: Text(
               _clean(line).replaceAll('**', ''),
               style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF033300),
+                color: accent,
                 fontSize: 13,
                 height: 1.4,
                 fontWeight: FontWeight.w800,
@@ -770,14 +828,12 @@ class _AssistantRichText extends StatelessWidget {
             child: Text.rich(
               TextSpan(
                 style: GoogleFonts.inter(
-                  color: isError
-                      ? const Color(0xFF7A4B00)
-                      : const Color(0xFF2B2B2B),
+                  color: bodyColor,
                   fontSize: 12.5,
                   height: 1.5,
                   fontWeight: FontWeight.w400,
                 ),
-                children: _spans(_clean(line)),
+                children: _spans(_clean(line), accent),
               ),
             ),
           ),
@@ -795,8 +851,9 @@ class _AssistantRichText extends StatelessWidget {
 
 class _BulletLine extends StatelessWidget {
   final String text;
+  final Color bodyColor;
 
-  const _BulletLine({required this.text});
+  const _BulletLine({required this.text, required this.bodyColor});
 
   @override
   Widget build(BuildContext context) {
@@ -819,11 +876,14 @@ class _BulletLine extends StatelessWidget {
             child: Text.rich(
               TextSpan(
                 style: GoogleFonts.inter(
-                  color: const Color(0xFF2B2B2B),
+                  color: bodyColor,
                   fontSize: 12.5,
                   height: 1.5,
                 ),
-                children: _AssistantRichText._spans(text),
+                children: _AssistantRichText._spans(
+                  text,
+                  context.tuklasForestInk,
+                ),
               ),
             ),
           ),
@@ -845,9 +905,9 @@ class _AiItemsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurfaceAlt,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEDE6D3)),
+        border: Border.all(color: context.tuklasHairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -857,7 +917,7 @@ class _AiItemsSection extends StatelessWidget {
             child: Text(
               'RECOMMENDED FOR YOUR REQUEST',
               style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF033300),
+                color: context.tuklasMuted,
                 fontSize: 9.5,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.5,
@@ -905,14 +965,14 @@ class _AiItemCardState extends State<_AiItemCard> {
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               color: isEvent
-                  ? const Color(0x18FFC800)
-                  : const Color(0x18033300),
+                  ? const Color(0x26FFC800)
+                  : const Color(0x26033000),
               borderRadius: BorderRadius.circular(9),
             ),
             child: Icon(
               isEvent ? Icons.event_available : Icons.place_outlined,
               size: 15,
-              color: const Color(0xFF033300),
+              color: context.tuklasForestInk,
             ),
           ),
           const SizedBox(width: 9),
@@ -925,7 +985,7 @@ class _AiItemCardState extends State<_AiItemCard> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
-                    color: const Color(0xFF1B1B1B),
+                    color: context.tuklasInk,
                     fontSize: 12,
                     height: 1.3,
                     fontWeight: FontWeight.w700,
@@ -937,7 +997,7 @@ class _AiItemCardState extends State<_AiItemCard> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    color: const Color(0xFF6B6B6B),
+                    color: context.tuklasMuted,
                     fontSize: 10,
                   ),
                 ),
@@ -946,7 +1006,9 @@ class _AiItemCardState extends State<_AiItemCard> {
           ),
           const SizedBox(width: 6),
           Material(
-            color: isSaved ? const Color(0xFF033300) : Colors.white,
+            color: isSaved
+                ? context.tuklasForestInk
+                : context.tuklasSurface,
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -978,13 +1040,16 @@ class _AiItemCardState extends State<_AiItemCard> {
                       }
                     },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSaved
-                        ? const Color(0xFF033300)
-                        : const Color(0xFFD8CFAE),
+                        ? context.tuklasForestInk
+                        : context.tuklasHairline,
                   ),
                 ),
                 child: Row(
@@ -994,8 +1059,8 @@ class _AiItemCardState extends State<_AiItemCard> {
                       isSaved ? Icons.check : Icons.add,
                       size: 11,
                       color: isSaved
-                          ? const Color(0xFFFFC800)
-                          : const Color(0xFF033300),
+                          ? const Color(0xFF033300)
+                          : context.tuklasForestInk,
                     ),
                     const SizedBox(width: 3),
                     Text(
@@ -1003,7 +1068,9 @@ class _AiItemCardState extends State<_AiItemCard> {
                           ? (isEvent ? 'Saved' : 'Following')
                           : (isEvent ? 'Interested' : 'Follow'),
                       style: GoogleFonts.inter(
-                        color: isSaved ? Colors.white : const Color(0xFF033300),
+                        color: isSaved
+                            ? const Color(0xFF033300)
+                            : context.tuklasForestInk,
                         fontSize: 9.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1030,8 +1097,11 @@ class _AiItemCardState extends State<_AiItemCard> {
                         if (mounted) setState(() => _navigating = false);
                       }
                     },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 6,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1098,9 +1168,9 @@ class _TypingIndicator extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.tuklasSurface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E5E5)),
+          border: Border.all(color: context.tuklasHairline),
         ),
         child: const SizedBox(
           width: 36,
@@ -1115,37 +1185,43 @@ class _TypingIndicator extends StatelessWidget {
   }
 }
 
+/// Compact single-line composer that grows up to four lines.
+///
+/// The field starts empty with a short muted hint, the character counter stays
+/// hidden until the visitor passes 350 characters, and the send button is a
+/// 44px gold circle that sits comfortably above the keyboard.
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
+  final int maxChars;
   final ValueChanged<String> onSubmitted;
 
   const _Composer({
     required this.controller,
     required this.sending,
+    required this.maxChars,
     required this.onSubmitted,
   });
 
+  static const int _counterThreshold = 350;
+
   @override
   Widget build(BuildContext context) {
+    final scheme = context.tuklasScheme;
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x11000000),
-            blurRadius: 8,
-            offset: Offset(0, -2),
-          ),
-        ],
+      decoration: BoxDecoration(
+        color: context.tuklasSurface,
+        border: Border(top: BorderSide(color: context.tuklasHairline)),
       ),
       padding: EdgeInsets.fromLTRB(
         12,
-        10,
+        8,
         12,
-        MediaQuery.viewPaddingOf(context).bottom + 10,
+        MediaQuery.viewPaddingOf(context).bottom + 8,
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: TextField(
@@ -1153,49 +1229,90 @@ class _Composer extends StatelessWidget {
               enabled: !sending,
               textInputAction: TextInputAction.send,
               onSubmitted: sending ? null : onSubmitted,
-              maxLines: 4,
               minLines: 1,
-              maxLength: 500,
+              maxLines: 4,
+              maxLength: maxChars,
+              style: TextStyle(fontSize: 14, color: context.tuklasInk),
+              cursorColor: scheme.primary,
+              // Hidden until the message gets long, then shown small and muted.
+              buildCounter:
+                  (
+                    context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) {
+                    if (currentLength <= _counterThreshold) return null;
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 2, left: 4),
+                      child: Text(
+                        '$currentLength/$maxChars',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: context.tuklasMuted,
+                        ),
+                      ),
+                    );
+                  },
               decoration: InputDecoration(
-                hintText: 'Ask about festivals, places, food or routes…',
+                hintText: 'Ask about Rizal...',
+                hintStyle: TextStyle(
+                  color: context.tuklasMuted,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                hintMaxLines: 1,
+                isDense: true,
                 filled: true,
-                fillColor: const Color(0xFFF7F6F2),
+                fillColor: context.tuklasSurfaceAlt,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
+                  horizontal: 16,
                   vertical: 10,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                  borderSide: BorderSide(color: context.tuklasHairline),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                  borderSide: BorderSide(color: context.tuklasHairline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide(color: scheme.primary, width: 1.6),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFC800),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF033300),
-                      ),
-                    )
-                  : const Icon(Icons.send, color: Color(0xFF033300)),
-              tooltip: 'Send',
-              onPressed: sending
-                  ? null
-                  : () => onSubmitted(controller.text.trim()),
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: Material(
+              color: const Color(0xFFFFC800),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: sending
+                    ? null
+                    : () => onSubmitted(controller.text.trim()),
+                child: Center(
+                  child: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF033300),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.arrow_upward_rounded,
+                          size: 20,
+                          color: Color(0xFF033300),
+                        ),
+                ),
+              ),
             ),
           ),
         ],

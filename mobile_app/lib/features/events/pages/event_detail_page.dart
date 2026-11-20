@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/theme/tuklas_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -558,9 +560,9 @@ class EventDetailPage extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.tuklasSurface,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE3E8E1)),
+                  border: Border.all(color: context.tuklasHairline),
                 ),
                 child: Row(
                   children: [
@@ -907,10 +909,10 @@ class _DetailRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF1B1B1B),
+                      color: context.tuklasInk,
                     ),
                   ),
                 ],
@@ -987,7 +989,7 @@ class _RsvpChip extends StatelessWidget {
       curve: Curves.easeOut,
       height: 36,
       decoration: BoxDecoration(
-        color: selected ? EventDetailPage.actionGreen : Colors.white,
+        color: selected ? EventDetailPage.actionGreen : context.tuklasSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: selected
@@ -1072,7 +1074,11 @@ class _HeartButtonState extends State<_HeartButton> {
   Widget build(BuildContext context) {
     final liked = widget.liked;
     return Material(
-      color: liked ? const Color(0xFFFFEBEE) : Colors.white,
+      color: liked
+          ? (context.tuklasIsDark
+                ? const Color(0xFF3A1B20)
+                : const Color(0xFFFFEBEE))
+          : context.tuklasSurface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -1297,9 +1303,9 @@ class _ReviewCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE3E8E1)),
+        border: Border.all(color: context.tuklasHairline),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1328,10 +1334,10 @@ class _ReviewCard extends StatelessWidget {
                         review.author,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1B1B1B),
+                          color: context.tuklasInk,
                         ),
                       ),
                     ),
@@ -1491,9 +1497,9 @@ class _InlineReviewComposerState extends ConsumerState<_InlineReviewComposer> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE3E8E1)),
+        border: Border.all(color: context.tuklasHairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1556,7 +1562,7 @@ class _InlineReviewComposerState extends ConsumerState<_InlineReviewComposer> {
               hintText: 'Write a review...',
               hintStyle: const TextStyle(fontSize: 13),
               filled: true,
-              fillColor: const Color(0xFFF7F6F2),
+              fillColor: context.tuklasSurfaceAlt,
               contentPadding: const EdgeInsets.all(12),
               counterStyle: const TextStyle(fontSize: 10),
               border: OutlineInputBorder(
@@ -1652,7 +1658,7 @@ class _RelatedCard extends StatelessWidget {
     return SizedBox(
       width: 208,
       child: Material(
-        color: Colors.white,
+        color: context.tuklasSurface,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -1887,9 +1893,9 @@ class _ReviewsSheet extends ConsumerWidget {
     final all = reviews.reviewsFor(eventId);
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF7F6F2),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      decoration: BoxDecoration(
+        color: context.tuklasSurfaceAlt,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
       ),
       child: Column(
         children: [
@@ -2132,9 +2138,11 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
-        decoration: const BoxDecoration(
-          color: Color(0xFFF7F6F2),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        decoration: BoxDecoration(
+          color: context.tuklasSurfaceAlt,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(22),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2212,7 +2220,7 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
                 hintText:
                     'Share your experience (10–$reviewMaxChars characters)…',
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: context.tuklasSurface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: Color(0xFFDADFDA)),
