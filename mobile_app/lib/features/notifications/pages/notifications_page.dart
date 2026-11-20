@@ -3,14 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/providers/app_providers.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../notification_state.dart';
 
-/// Notification Inbox — live approved events + LGU civic broadcasts.
+/// Notification Inbox — activity that concerns the signed-in user.
 ///
-/// Everything on this screen comes from the Supabase `events` stream
-/// (`status = 'approved'`); unread badges are device-local so a guest can use
-/// the inbox without an account.
+/// Rows are derived from coordinator replies, the user's own approved
+/// submissions, reminders for saved events and events approved after the
+/// account baseline. Guests see an empty inbox; unread badges are device-local.
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
 
@@ -21,8 +22,12 @@ class NotificationsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifications = ref.watch(appNotificationsProvider);
     final controller = ref.watch(notificationsControllerProvider);
+    // Guests have no inbox, so never show a loading skeleton for them.
+    final signedIn = ref.watch(verifiedAuthUserProvider) != null;
     final loading =
-        ref.watch(allApprovedEventsProvider).isLoading && notifications.isEmpty;
+        signedIn &&
+        ref.watch(allApprovedEventsProvider).isLoading &&
+        notifications.isEmpty;
     final unread = controller.unreadCount(notifications);
 
     return Scaffold(
@@ -33,8 +38,11 @@ class NotificationsPage extends ConsumerWidget {
             color: forest,
             child: SafeArea(
               bottom: false,
+              // Explicit top padding so the title and back arrow keep clear of
+              // the status bar on every device (including cutouts).
+              minimum: const EdgeInsets.only(top: 8),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(4, 8, 12, 14),
+                padding: const EdgeInsets.fromLTRB(8, 4, 12, 14),
                 child: Row(
                   children: [
                     IconButton(
@@ -123,7 +131,10 @@ class NotificationsPage extends ConsumerWidget {
                           isRead: controller.isRead(item.id),
                           onTap: () {
                             controller.markRead(item.id);
-                            context.push('/event/${item.eventId}');
+                            final eventId = item.eventId;
+                            if (eventId != null && eventId.isNotEmpty) {
+                              context.push('/event/$eventId');
+                            }
                           },
                         ),
                       );
@@ -163,6 +174,14 @@ class _NotificationTile extends StatelessWidget {
       AppNotificationKind.upcomingEvent => (
         Icons.event_available_outlined,
         isDark ? const Color(0xFF24352C) : const Color(0xFFE7F0E4),
+      ),
+      AppNotificationKind.coordinatorReply => (
+        Icons.forum_outlined,
+        isDark ? const Color(0xFF24352C) : const Color(0xFFDCE8DC),
+      ),
+      AppNotificationKind.submissionUpdate => (
+        Icons.task_alt_outlined,
+        isDark ? const Color(0xFF3A3115) : const Color(0xFFFFE9A3),
       ),
     };
 
@@ -316,8 +335,8 @@ class _EmptyInbox extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Newly approved events and Provincial Tourism advisories will '
-              'appear here as soon as the LGU publishes them.',
+              'Replies from your Tourism Coordinator, updates on your own '
+              'submissions and reminders for saved events will appear here.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12.5,

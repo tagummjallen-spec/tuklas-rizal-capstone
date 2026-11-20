@@ -61,6 +61,12 @@ class TuklasRizalApp extends ConsumerWidget {
     // to interest onboarding once their profile exists.
     ref.listen(authStateProvider, (previous, next) async {
       final profile = next.valueOrNull;
+      // Keep the router's auth guard in sync so an authenticated user is never
+      // left sitting on /login or /signup. Post-frame: notifying the router
+      // mid-build would schedule a navigation during layout.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        authRedirectNotifier.update(profile?.id);
+      });
       if (profile == null || _bootstrappedUsers.contains(profile.id)) return;
       _bootstrappedUsers.add(profile.id);
       try {
@@ -82,6 +88,17 @@ class TuklasRizalApp extends ConsumerWidget {
         // Never block app start on the interest lookup.
       }
     });
+
+    // An existing session restored at launch never fires a change event, so
+    // sync the router's auth guard once after the first frame.
+    if (authRedirectNotifier.userId == null &&
+        ref.read(authStateProvider).valueOrNull != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        authRedirectNotifier.update(
+          ref.read(authStateProvider).valueOrNull?.id,
+        );
+      });
+    }
 
     return MaterialApp.router(
       title: AppConstants.appName,

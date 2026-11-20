@@ -233,14 +233,19 @@ class SupabaseAuthService implements AuthService {
         await _client.auth.signOut();
         throw Exception(verification);
       }
-      final profile = await _fetchProfile(response.user!.id);
-      if (profile == null) {
-        throw Exception(
-          'Your TuklasRizal profile is missing. Please contact the Provincial '
-          'IT Admin or sign up again.',
-        );
+      // The session is already live at this point, so a slow or failing
+      // profile read must not block the sign-in spinner. Fall back to a local
+      // profile built from the auth user; the auth-state stream fills in the
+      // DB-backed profile as soon as it arrives.
+      UserProfile? profile;
+      try {
+        profile = await _fetchProfile(
+          response.user!.id,
+        ).timeout(const Duration(seconds: 10));
+      } on TimeoutException {
+        profile = null;
       }
-      return profile;
+      return profile ?? _profileFromAuthUser(response.user!);
     } on AuthException catch (e) {
       // Supabase throws AuthException when email is not confirmed.
       if (e.message.toLowerCase().contains('not confirmed') ||
@@ -327,6 +332,26 @@ class SupabaseAuthService implements AuthService {
       roleTitle: roleTitle,
       municipalityId: municipalityId,
       isApproved: isApproved,
+    );
+  }
+
+  /// Lightweight profile built from the auth user, used when the DB row cannot
+  /// be read in time. `role_tier` / name come from auth metadata.
+  UserProfile _profileFromAuthUser(User user) {
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final rawName = meta['full_name'] ?? meta['name'];
+    final rawAvatar = meta['avatar_url'] ?? meta['picture'];
+    final roleTier = UserProfile.parseRoleTier(meta['role_tier']);
+    return UserProfile(
+      id: user.id,
+      email: user.email ?? '',
+      fullName: rawName is String && rawName.trim().isNotEmpty
+          ? rawName.trim()
+          : 'User',
+      avatarUrl: rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null,
+      roleTier: roleTier,
+      roleTitle: meta['role_title'] as String?,
+      isApproved: roleTier < 1,
     );
   }
 

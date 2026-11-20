@@ -51,6 +51,13 @@ class SupabaseRagChatService implements RagChatService {
 
   String? _lastError;
 
+  /// QA/seed rows such as "Test 1" are never shown as recommendations, even if
+  /// an older Edge Function deployment still returns them.
+  static final RegExp _testRecordPattern = RegExp(
+    r'\btest',
+    caseSensitive: false,
+  );
+
   @override
   String? get lastError => _lastError;
 
@@ -138,7 +145,7 @@ class SupabaseRagChatService implements RagChatService {
       final items = _listValue(data['items'])
           .whereType<Map>()
           .map((item) => ChatItem.fromJson(Map<String, dynamic>.from(item)))
-          .where((item) => item.isValid)
+          .where((item) => item.isValid && !_testRecordPattern.hasMatch(item.title))
           .toList();
 
       _messages.add(

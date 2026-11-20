@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/tourism_images.dart';
 import '../../../core/widgets/app_motion.dart';
+import '../../../core/widgets/tuklas_main_header.dart';
 import '../../../models/event_item.dart';
 import '../../../models/poi_logistics.dart';
 import '../../../services/lookup_service.dart';
@@ -43,61 +44,12 @@ class _SavedPageState extends ConsumerState<SavedPage> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          // ---- Green header -------------------------------------------------
-          Container(
-            color: forest,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: const BoxDecoration(
-                        color: gold,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.bookmark,
-                        color: forest,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Saved',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            '${events.length} event'
-                            '${events.length == 1 ? '' : 's'} · '
-                            '${pois.length} place'
-                            '${pois.length == 1 ? '' : 's'}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          TuklasMainHeader(
+            bottomRow: TuklasHeaderHeading(
+              title: 'Saved Collection',
+              subtitle:
+                  '${events.length} event${events.length == 1 ? '' : 's'} · '
+                  '${pois.length} place${pois.length == 1 ? '' : 's'}',
             ),
           ),
 

@@ -320,22 +320,6 @@ class _GuideHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFC800).withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFFFC800)),
-                ),
-                child: const Text(
-                  'LIVE',
-                  style: TextStyle(
-                    color: Color(0xFFFFC800),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -677,13 +661,62 @@ class _AssistantRichText extends StatelessWidget {
         !_isBullet(line);
   }
 
+  /// `|---|:--:|` style separators carry no meaning on a phone; drop them.
+  static bool _isTableSeparator(String line) =>
+      line.contains('|') &&
+      RegExp(r'^\|?[\s:\-|]+\|?$').hasMatch(line) &&
+      line.contains('-');
+
+  /// A row such as `| Tanay | April 12 | Falls |`.
+  static bool _isTableRow(String line) =>
+      !_isTableSeparator(line) && '|'.allMatches(line).length >= 2;
+
+  /// Flattens one pipe row into a readable bullet instead of a table.
+  static String _tableRowToText(String line) {
+    final cells = line
+        .split('|')
+        .map(_clean)
+        .where((cell) => cell.isNotEmpty)
+        .toList();
+    if (cells.isEmpty) return '';
+    if (cells.length == 1) return cells.first;
+    final label = cells.first;
+    final rest = cells.skip(1).join(' · ');
+    return '$label: $rest';
+  }
+
   static String _clean(String line) => line
       .replaceFirst(_bullet, '')
       .replaceAll(RegExp(r'^#{1,6}\s*'), '')
-      .replaceAll('**', '')
       .replaceAll('__', '')
       .replaceAll('`', '')
       .trim();
+
+  /// Splits `**label**` runs into bold spans so labels read cleanly.
+  static List<InlineSpan> _spans(String text) {
+    final spans = <InlineSpan>[];
+    final pattern = RegExp(r'\*\*(.+?)\*\*');
+    var last = 0;
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > last) {
+        spans.add(TextSpan(text: text.substring(last, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF033300),
+          ),
+        ),
+      );
+      last = match.end;
+    }
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last)));
+    }
+    return spans;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -694,6 +727,17 @@ class _AssistantRichText extends StatelessWidget {
       final line = lines[i].trim();
       if (line.isEmpty) {
         blocks.add(const SizedBox(height: 6));
+        i++;
+        continue;
+      }
+      // Tables are flattened into bullets: no raw pipes on mobile.
+      if (_isTableSeparator(line)) {
+        i++;
+        continue;
+      }
+      if (_isTableRow(line)) {
+        final row = _tableRowToText(line);
+        if (row.isNotEmpty) blocks.add(_BulletLine(text: row));
         i++;
         continue;
       }
@@ -709,7 +753,7 @@ class _AssistantRichText extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 6, bottom: 3),
             child: Text(
-              _clean(line),
+              _clean(line).replaceAll('**', ''),
               style: GoogleFonts.plusJakartaSans(
                 color: const Color(0xFF033300),
                 fontSize: 13,
@@ -723,15 +767,17 @@ class _AssistantRichText extends StatelessWidget {
         blocks.add(
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              _clean(line),
-              style: GoogleFonts.inter(
-                color: isError
-                    ? const Color(0xFF7A4B00)
-                    : const Color(0xFF2B2B2B),
-                fontSize: 12.5,
-                height: 1.5,
-                fontWeight: FontWeight.w400,
+            child: Text.rich(
+              TextSpan(
+                style: GoogleFonts.inter(
+                  color: isError
+                      ? const Color(0xFF7A4B00)
+                      : const Color(0xFF2B2B2B),
+                  fontSize: 12.5,
+                  height: 1.5,
+                  fontWeight: FontWeight.w400,
+                ),
+                children: _spans(_clean(line)),
               ),
             ),
           ),
@@ -770,12 +816,14 @@ class _BulletLine extends StatelessWidget {
           ),
           const SizedBox(width: 9),
           Expanded(
-            child: Text(
-              text,
-              style: GoogleFonts.inter(
-                color: const Color(0xFF2B2B2B),
-                fontSize: 12.5,
-                height: 1.5,
+            child: Text.rich(
+              TextSpan(
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF2B2B2B),
+                  fontSize: 12.5,
+                  height: 1.5,
+                ),
+                children: _AssistantRichText._spans(text),
               ),
             ),
           ),
@@ -807,7 +855,7 @@ class _AiItemsSection extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 9, 10, 2),
             child: Text(
-              'EXPLORE THESE VERIFIED RECORDS',
+              'RECOMMENDED FOR YOUR REQUEST',
               style: GoogleFonts.plusJakartaSans(
                 color: const Color(0xFF033300),
                 fontSize: 9.5,
@@ -816,7 +864,7 @@ class _AiItemsSection extends StatelessWidget {
               ),
             ),
           ),
-          for (final item in items.take(5))
+          for (final item in items.take(4))
             _AiItemCard(item: item, saved: saved),
           const SizedBox(height: 4),
         ],

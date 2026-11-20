@@ -101,6 +101,8 @@ interface Retrieved {
   events: EventRow[];
   pois: PoiRow[];
   towns: Municipality[];
+  /** Top records ranked against the visitor's intent (max 4). */
+  items: ChatItem[];
   context: string;
   sources: string[];
   municipality: string | null;
@@ -157,7 +159,10 @@ GROUNDING MECHANICS:
 
 STYLE:
 - Warm, helpful and concise: about 120-200 words (a little more for a multi-town itinerary).
-- Use short bullets for lists and a brief friendly closing line.
+- NEVER use Markdown tables. No pipe characters (|), no header rows, and no |---| separators — columns wrap badly and look like clutter on a phone. When comparing towns, events, fees or routes, write them as short paragraphs with a bold label on its own line (for example **Town & Dates:**, **Why It Fits:**, **How to Get There:**, **Fees & Hours:**) and put the detail in plain sentences underneath.
+- Use clean bullet points starting with "- " for lists, one short idea per bullet, and bold labels at the start of a bullet when it helps scanning (for example "- **Antipolo:** ...").
+- Keep headings short and bold (**Weekend in Tanay:**), never underlined, never with pipes or ASCII art.
+- Use a brief friendly closing line.
 - Prefer concrete verified details (dates, venue, how to get there, hours, fees, contacts) when they are present in the sources.
 - If the sources do not cover the question, say so kindly and point to the town's Tourism Coordinator / Municipal Tourism Office or the Rizal Provincial Tourism Office (tourismoffice@rizalprovincialgov.ph / (02) 8256-3000 local 4241/4242).`;
 
@@ -187,6 +192,139 @@ const STOPWORDS = new Set<string>([
   "daw", "raw", "pa", "na", "nang", "kapag", "pag", "kung", "para", "tungkol", "bakasyon", "gala",
   "biyahe", "magkano", "papunta",
 ]);
+
+// ---------------------------------------------------------------------------
+// Test-data exclusion
+// ---------------------------------------------------------------------------
+
+/**
+ * QA/seed rows such as "Test 1" or "test event" must never ground an answer or
+ * appear in the recommendation cards. Whole-word matching keeps legitimate
+ * copy ("latest", "contest", "greatest") untouched.
+ */
+const TEST_DATA_PATTERN = /\btest(?:s|ing|er|ers|ed)?\b/i;
+
+function looksLikeTestRecord(...values: Array<string | null | undefined>): boolean {
+  return values.some(
+    (value) => typeof value === "string" && TEST_DATA_PATTERN.test(value),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Intent detection — family, food, faith, adventure, art/heritage
+// ---------------------------------------------------------------------------
+
+interface IntentRule {
+  key: string;
+  /** Words in the visitor's message that activate the intent. */
+  triggers: string[];
+  /** Record-side synonyms that earn relevance points. */
+  terms: string[];
+}
+
+const INTENT_RULES: IntentRule[] = [
+  {
+    key: "family",
+    triggers: [
+      "kid", "kids", "child", "children", "family", "families", "toddler",
+      "baby", "picnic", "gathering", "gatherings", "reunion", "bonding",
+      "playground", "wholesome",
+    ],
+    terms: [
+      "family", "kid", "child", "children", "park", "resort", "farm",
+      "picnic", "museum", "nature", "falls", "festival", "recreation",
+      "playground", "lake", "lakeshore", "zoo", "garden", "trail",
+    ],
+  },
+  {
+    key: "food",
+    triggers: [
+      "food", "foods", "eat", "eating", "restaurant", "restaurants",
+      "cafe", "coffee", "pasalubong", "delicacy", "delicacies", "kakanin",
+      "suman", "bibingka", "itik", "dining", "lunch", "breakfast",
+      "merienda", "culinary", "market", "native",
+    ],
+    terms: [
+      "food", "culinary", "dining", "restaurant", "cafe", "coffee", "suman",
+      "bibingka", "kakanin", "itik", "delicacy", "pasalubong", "market",
+      "eatery", "grill", "kitchen", "food park", "bakery",
+    ],
+  },
+  {
+    key: "faith",
+    triggers: [
+      "church", "churches", "cathedral", "shrine", "shrines", "pilgrimage",
+      "faith", "parish", "simbahan", "visita", "iglesia", "mass", "prayer",
+    ],
+    terms: [
+      "church", "cathedral", "shrine", "pilgrimage", "faith", "parish",
+      "chapel", "simbahan", "retablo", "altar",
+    ],
+  },
+  {
+    key: "adventure",
+    triggers: [
+      "hike", "hiking", "hiker", "trek", "trekking", "trail", "waterfall",
+      "waterfalls", "falls", "cave", "caving", "mountain", "mountains",
+      "river", "adventure", "nature", "eco", "camping", "summit",
+    ],
+    terms: [
+      "falls", "waterfall", "cave", "mountain", "mount", "hike", "trek",
+      "trail", "river", "wind farm", "eco", "camp", "forest", "peak",
+      "viewdeck", "riverbanks",
+    ],
+  },
+  {
+    key: "heritage",
+    triggers: [
+      "art", "arts", "artwork", "artworks", "heritage", "museum", "museums",
+      "gallery", "culture", "cultural", "history", "historical", "petroglyph",
+      "petroglyphs", "higantes", "ancestral", "folk",
+    ],
+    terms: [
+      "art", "museum", "gallery", "petroglyph", "heritage", "higantes",
+      "culture", "cultural", "historical", "ancestral", "folk", "shrine",
+    ],
+  },
+];
+
+const INTENT_FIRST_TERM_WEIGHT = 6;
+const INTENT_ADDITIONAL_TERM_WEIGHT = 1.5;
+
+/** Token/phrase match that tolerates plurals and inflections. */
+function phraseMatches(tokens: string[], text: string, phrase: string): boolean {
+  const needle = normalize(phrase);
+  if (!needle) return false;
+  if (needle.includes(" ")) return text.includes(needle);
+  return tokens.some(
+    (token) => token === needle || (needle.length >= 4 && token.startsWith(needle)),
+  );
+}
+
+function detectIntents(message: string): IntentRule[] {
+  const text = normalize(message);
+  const tokens = text.split(" ").filter(Boolean);
+  return INTENT_RULES.filter((rule) =>
+    rule.triggers.some((trigger) => phraseMatches(tokens, text, trigger)),
+  );
+}
+
+/** Relevance bonus from the record's own text for the detected intents. */
+function intentScore(haystack: string, intents: IntentRule[]): number {
+  if (intents.length === 0) return 0;
+  const tokens = haystack.split(" ").filter(Boolean);
+  let score = 0;
+  for (const intent of intents) {
+    let matched = 0;
+    for (const term of intent.terms) {
+      if (!phraseMatches(tokens, haystack, term)) continue;
+      matched += 1;
+      if (matched === 1) score += INTENT_FIRST_TERM_WEIGHT;
+      else if (matched <= 4) score += INTENT_ADDITIONAL_TERM_WEIGHT;
+    }
+  }
+  return score;
+}
 
 // ---------------------------------------------------------------------------
 // Request parsing / validation
@@ -319,8 +457,9 @@ function rankRows<T extends LocatedRow>(
   keywords: string[],
   filterTown: Municipality | null,
   textOf: (row: T) => string,
+  intents: IntentRule[],
   limit: number,
-): T[] {
+): Array<{ row: T; score: number }> {
   const filterName = filterTown ? normalize(filterTown.name) : "";
   const ranked = rows.map((row) => {
     // Small base score keeps broad questions (e.g. "plan a trip") answerable
@@ -330,6 +469,9 @@ function rankRows<T extends LocatedRow>(
     for (const keyword of keywords) {
       if (haystack.includes(keyword)) score += 3;
     }
+    // Intent matching so "events for kids", "local food", "churches" and
+    // similar questions surface the records that actually answer them.
+    score += intentScore(haystack, intents);
     if (filterTown) {
       const rowTown = townOf(row);
       if (rowTown && normalize(rowTown.name) === filterName) score += 8;
@@ -338,7 +480,7 @@ function rankRows<T extends LocatedRow>(
     return { row, score };
   });
   ranked.sort((a, b) => b.score - a.score);
-  return ranked.slice(0, limit).map((entry) => entry.row);
+  return ranked.slice(0, limit);
 }
 
 function rankTowns(
@@ -560,27 +702,56 @@ function buildSources(events: EventRow[], pois: PoiRow[], towns: Municipality[])
 }
 
 /** Verified records behind the answer, for tappable cards in the mobile app. */
-function buildItems(events: EventRow[], pois: PoiRow[]): ChatItem[] {
-  const items: ChatItem[] = [];
-  for (const event of events.slice(0, 5)) {
-    if (!event.id || !event.title) continue;
-    items.push({
+function toChatItem(row: EventRow | PoiRow, type: "event" | "poi"): ChatItem | null {
+  if (!row.id) return null;
+  if (type === "event") {
+    const event = row as EventRow;
+    if (!event.title) return null;
+    return {
       id: event.id,
       type: "event",
       title: event.title,
       municipality: townOf(event)?.name ?? "Rizal",
-    });
+    };
   }
-  for (const poi of pois.slice(0, 5)) {
-    if (!poi.id || !poi.name) continue;
-    items.push({
-      id: poi.id,
-      type: "poi",
-      title: poi.name,
-      municipality: townOf(poi)?.name ?? "Rizal",
-    });
+  const poi = row as PoiRow;
+  if (!poi.name) return null;
+  return {
+    id: poi.id,
+    type: "poi",
+    title: poi.name,
+    municipality: townOf(poi)?.name ?? "Rizal",
+  };
+}
+
+/** Only the strongest matches reach the "Recommended for your request" cards. */
+const MAX_RECOMMENDATIONS = 4;
+
+function buildRecommendations(
+  events: Array<{ row: EventRow; score: number }>,
+  pois: Array<{ row: PoiRow; score: number }>,
+): ChatItem[] {
+  const scored: Array<{ item: ChatItem; score: number }> = [];
+  for (const entry of events) {
+    const item = toChatItem(entry.row, "event");
+    if (item) scored.push({ item, score: entry.score });
   }
-  return items;
+  for (const entry of pois) {
+    const item = toChatItem(entry.row, "poi");
+    if (item) scored.push({ item, score: entry.score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+
+  const seen = new Set<string>();
+  const picked: ChatItem[] = [];
+  for (const entry of scored) {
+    const key = `${entry.item.type}:${entry.item.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(entry.item);
+    if (picked.length >= MAX_RECOMMENDATIONS) break;
+  }
+  return picked;
 }
 
 async function retrieve(message: string, explicitMunicipality: string | null): Promise<Retrieved> {
@@ -607,10 +778,21 @@ async function retrieve(message: string, explicitMunicipality: string | null): P
     console.warn("Supabase URL/key not configured — no verified records retrieved.");
   }
 
+  // QA/seed rows ("Test 1", "test event") never ground an answer or reach the
+  // recommendation cards.
+  towns = towns.filter((town) => !looksLikeTestRecord(town.name, town.description));
+  events = events.filter((event) =>
+    !looksLikeTestRecord(event.title, event.description, event.venue_name)
+  );
+  pois = pois.filter((poi) =>
+    !looksLikeTestRecord(poi.name, poi.description, poi.address)
+  );
+
   const filterTown = resolveMunicipality(explicitMunicipality, message, towns);
   const keywords = keywordTokens(message);
+  const intents = detectIntents(message);
 
-  const topEvents = rankRows(
+  const rankedEvents = rankRows(
     attachTowns(events, towns),
     keywords,
     filterTown,
@@ -621,9 +803,10 @@ async function retrieve(message: string, explicitMunicipality: string | null): P
       event.how_to_get_there,
       townOf(event)?.name ?? "",
     ].join(" "),
+    intents,
     6,
   );
-  const topPois = rankRows(
+  const rankedPois = rankRows(
     attachTowns(pois, towns),
     keywords,
     filterTown,
@@ -635,14 +818,18 @@ async function retrieve(message: string, explicitMunicipality: string | null): P
       poi.how_to_get_there,
       townOf(poi)?.name ?? "",
     ].join(" "),
+    intents,
     7,
   );
+  const topEvents = rankedEvents.map((entry) => entry.row);
+  const topPois = rankedPois.map((entry) => entry.row);
   const topTowns = rankTowns(towns, keywords, filterTown, 3);
 
   return {
     events: topEvents,
     pois: topPois,
     towns: topTowns,
+    items: buildRecommendations(rankedEvents, rankedPois),
     context: buildContext(topEvents, topPois, topTowns),
     sources: buildSources(topEvents, topPois, topTowns),
     municipality: filterTown ? filterTown.name : null,
@@ -873,7 +1060,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       "Follow all five mandatory rules: strict grounding/zero guessing, explainable hidden-gem pairing, " +
       "language mirroring, out-of-scope & travel-safety guardrails, and privacy/AI transparency.";
     const generated = await generate(body.history, userPrompt);
-    const items = buildItems(retrieved.events, retrieved.pois);
+    const items = retrieved.items;
     const sources = [...retrieved.sources, REFERENCE_GUIDE_SOURCE];
 
     if (generated) {

@@ -54,6 +54,22 @@ CustomTransitionPage<T> fadeSlidePage<T>({
   );
 }
 
+/// Mirrors the signed-in user id so GoRouter can redirect away from the auth
+/// screens. `main.dart` updates it whenever `authStateProvider` changes.
+class AuthRedirectNotifier extends ChangeNotifier {
+  String? _userId;
+
+  String? get userId => _userId;
+
+  void update(String? userId) {
+    if (_userId == userId) return;
+    _userId = userId;
+    notifyListeners();
+  }
+}
+
+final AuthRedirectNotifier authRedirectNotifier = AuthRedirectNotifier();
+
 /// GoRouter configuration with a BottomNavigationBar shell.
 ///
 /// Routes mirror the mobile app feature flow from CAPSTONE_REQUIREMENTS.md.
@@ -65,13 +81,19 @@ CustomTransitionPage<T> fadeSlidePage<T>({
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   debugLogDiagnostics: false,
-  // Re-evaluate the redirect whenever onboarding completes or is replayed.
-  refreshListenable: onboardingController,
+  // Re-evaluate the redirect whenever onboarding completes or is replayed, and
+  // whenever the auth session appears or disappears.
+  refreshListenable: Listenable.merge([onboardingController, authRedirectNotifier]),
   redirect: (context, state) {
     // `main.dart` awaits the persisted flag before the app starts; this guard
     // only matters if the controller is somehow used before that finishes.
     if (onboardingController.isLoading) return null;
     final location = state.matchedLocation;
+    // Already signed in: never sit on the sign-in / sign-up screens.
+    if (authRedirectNotifier.userId != null &&
+        (location == '/login' || location == '/signup')) {
+      return '/';
+    }
     final inOnboarding =
         location == '/onboarding' || location.startsWith('/onboarding/');
     if (!onboardingController.hasCompleted) {
@@ -158,6 +180,44 @@ final GoRouter appRouter = GoRouter(
             child: const ProfilePage(),
           ),
         ),
+        // Secondary screens live inside the shell so the 5-tab bottom bar
+        // stays visible while browsing details, settings and notifications.
+        GoRoute(
+          path: '/poi/:id',
+          name: 'poi_detail',
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: PoiDetailPage(poiId: state.pathParameters['id']!),
+          ),
+        ),
+        GoRoute(
+          path: '/event/:id',
+          name: 'event_detail',
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: EventDetailPage(eventId: state.pathParameters['id']!),
+          ),
+        ),
+        GoRoute(
+          path: '/settings',
+          name: 'settings',
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const SettingsPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/notifications',
+          name: 'notifications',
+          pageBuilder: (context, state) => fadeSlidePage(
+            context: context,
+            state: state,
+            child: const NotificationsPage(),
+          ),
+        ),
       ],
     ),
     // Auth routes (outside shell) — all defined in login_page.dart
@@ -177,24 +237,6 @@ final GoRouter appRouter = GoRouter(
         context: context,
         state: state,
         child: const SignupPage(),
-      ),
-    ),
-    GoRoute(
-      path: '/settings',
-      name: 'settings',
-      pageBuilder: (context, state) => fadeSlidePage(
-        context: context,
-        state: state,
-        child: const SettingsPage(),
-      ),
-    ),
-    GoRoute(
-      path: '/notifications',
-      name: 'notifications',
-      pageBuilder: (context, state) => fadeSlidePage(
-        context: context,
-        state: state,
-        child: const NotificationsPage(),
       ),
     ),
     // Contact Us & LGU Coordinator Inquiry. A dedicated root-level page keeps
@@ -265,16 +307,8 @@ final GoRouter appRouter = GoRouter(
         child: const InterestOnboardingPage(),
       ),
     ),
-    // Detail / action routes — defined in combined feature files
-    GoRoute(
-      path: '/poi/:id',
-      name: 'poi_detail',
-      pageBuilder: (context, state) => fadeSlidePage(
-        context: context,
-        state: state,
-        child: PoiDetailPage(poiId: state.pathParameters['id']!),
-      ),
-    ),
+    // Detail / action routes that still need the full screen (keyboard or
+    // focused flow). Detail pages themselves live inside the shell above.
     GoRoute(
       path: '/directions',
       name: 'directions',
@@ -282,15 +316,6 @@ final GoRouter appRouter = GoRouter(
         context: context,
         state: state,
         child: const DirectionsPage(),
-      ),
-    ),
-    GoRoute(
-      path: '/event/:id',
-      name: 'event_detail',
-      pageBuilder: (context, state) => fadeSlidePage(
-        context: context,
-        state: state,
-        child: EventDetailPage(eventId: state.pathParameters['id']!),
       ),
     ),
     GoRoute(
@@ -362,6 +387,27 @@ class _BottomNavShellState extends State<_BottomNavShell> {
     Icons.person,
   ];
 
+  /// Detail and secondary routes keep their parent tab highlighted.
+  static const Map<String, int> _sectionTabs = {
+    '/event/': 2,
+    '/poi/': 1,
+    '/settings': 4,
+    '/notifications': 4,
+    '/coordinators': 4,
+    '/inquiry/': 4,
+  };
+
+  int _indexFor(String location) {
+    final direct = _routes.indexWhere(
+      (r) => location == r || location.startsWith('$r/'),
+    );
+    if (direct != -1) return direct;
+    for (final entry in _sectionTabs.entries) {
+      if (location.startsWith(entry.key)) return entry.value;
+    }
+    return 0;
+  }
+
   void _onItemTapped(int index) {
     setState(() => _selectedIndex = index);
     context.go(_routes[index]);
@@ -370,10 +416,7 @@ class _BottomNavShellState extends State<_BottomNavShell> {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    _selectedIndex = _routes.indexWhere(
-      (r) => location == r || location.startsWith('$r/'),
-    );
-    if (_selectedIndex == -1) _selectedIndex = 0;
+    _selectedIndex = _indexFor(location);
 
     final navTheme = Theme.of(context).bottomNavigationBarTheme;
     final activeColor =

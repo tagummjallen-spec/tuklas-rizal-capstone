@@ -7,7 +7,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/promotion_reason.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/event_card.dart';
-import '../../../core/widgets/tuklas_page_header.dart';
+import '../../../core/widgets/tuklas_main_header.dart';
 import '../../../models/event_item.dart';
 import '../../../services/lookup_service.dart';
 import '../../../services/saved_places_service.dart';
@@ -26,6 +26,7 @@ class EventsPage extends ConsumerStatefulWidget {
 
 class _EventsPageState extends ConsumerState<EventsPage> {
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
   String _query = '';
   String? _municipalityId;
   String? _categoryId;
@@ -40,6 +41,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -55,19 +57,12 @@ class _EventsPageState extends ConsumerState<EventsPage> {
       resizeToAvoidBottomInset: false,
       body: Column(
         children: [
-          TuklasPageHeader(
-            title: 'Events & Calendar',
-            subtitle: 'Festivals, fiestas and community gatherings',
-            actions: [
-              IconButton(
-                tooltip: 'Notifications',
-                icon: const Icon(
-                  Icons.notifications_outlined,
-                  color: Color(0xFFFFC800),
-                ),
-                onPressed: () => context.push('/notifications'),
-              ),
-            ],
+          TuklasMainHeader(
+            onSearch: _searchFocus.requestFocus,
+            bottomRow: const TuklasHeaderHeading(
+              title: 'Events & Calendar',
+              subtitle: 'Festivals, fiestas and community gatherings',
+            ),
           ),
           const SizedBox(height: 12),
           Padding(
@@ -78,6 +73,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: TextField(
               controller: _searchCtrl,
+              focusNode: _searchFocus,
               onChanged: (value) => setState(() => _query = value),
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(

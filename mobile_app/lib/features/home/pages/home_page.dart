@@ -9,16 +9,15 @@ import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/interest_matcher.dart';
 import '../../../core/utils/promotion_reason.dart';
-import '../../../core/widgets/ai_guide_button.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/hero_carousel.dart';
 import '../../../core/widgets/municipality_chip.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/tuklas_main_header.dart';
 import '../../../models/event_item.dart';
 import '../../../models/municipality.dart';
 import '../../../services/lookup_service.dart';
-import '../../notifications/notification_state.dart';
 
 /// Home / Discovery Hub — live civic broadcast banner, featured events,
 /// "Promote Towns and Events", municipality + barangay + category filters.
@@ -90,13 +89,15 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(
-          104 + MediaQuery.of(context).padding.top,
+          TuklasMainHeader.height + MediaQuery.of(context).padding.top,
         ),
-        child: _HomeHeader(
-          selectedMunicipality: selectedMunicipality,
-          onPickMunicipality: () => _pickMunicipality(municipalities),
+        child: TuklasMainHeader(
           onSearch: _focusQuickSearch,
-          onMenuSelected: (value) => _openFromMenu(context, value),
+          bottomRow: TuklasMunicipalitySelector(
+            label: selectedMunicipality?.name ?? 'All 14 Towns',
+            hasSelection: selectedMunicipality != null,
+            onTap: () => _pickMunicipality(municipalities),
+          ),
         ),
       ),
       body: RefreshIndicator(
@@ -547,15 +548,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     return [...matches, ...rest];
   }
 
-  /// Root-level pages are pushed, shell tabs are switched with `go`.
-  void _openFromMenu(BuildContext context, String location) {
-    const shellTabs = {'/assistant', '/coordinators'};
-    if (shellTabs.contains(location)) {
-      context.go(location);
-    } else {
-      context.push(location);
-    }
-  }
 
   Future<void> _toggleSavedEvent(EventItem event) async {
     final saved = await ref.read(savedPlacesProvider).toggleEvent(event);
@@ -582,255 +574,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
         backgroundColor: const Color(0xFF033300),
         duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Branded, interactive Home header
-// ---------------------------------------------------------------------------
-class _HomeHeader extends StatelessWidget {
-  final Municipality? selectedMunicipality;
-  final VoidCallback onPickMunicipality;
-  final VoidCallback onSearch;
-  final ValueChanged<String> onMenuSelected;
-
-  const _HomeHeader({
-    required this.selectedMunicipality,
-    required this.onPickMunicipality,
-    required this.onSearch,
-    required this.onMenuSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final pillLabel = selectedMunicipality?.name ?? 'All 14 Towns';
-
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF022600), Color(0xFF075A12)],
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 6, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(child: _BrandMark()),
-                  _HeaderIconButton(
-                    tooltip: 'Search events and places',
-                    icon: Icons.search,
-                    onPressed: onSearch,
-                  ),
-                  const AiGuideButton(),
-                  const _NotificationBell(),
-                  PopupMenuButton<String>(
-                    tooltip: 'More',
-                    icon: const Icon(
-                      Icons.more_vert,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onSelected: onMenuSelected,
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: '/assistant',
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.chat_bubble_outline,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          title: const Text('AI Assistant'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: '/coordinators',
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.business,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          title: const Text('Tourism Coordinators'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: '/settings',
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.settings_outlined,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          title: const Text('App Settings'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              _MunicipalityPill(
-                label: pillLabel,
-                hasSelection: selectedMunicipality != null,
-                onTap: onPickMunicipality,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BrandMark extends StatelessWidget {
-  const _BrandMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFC800),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.travel_explore,
-            color: Color(0xFF033300),
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 8),
-        const Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                AppConstants.appName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.2,
-                ),
-              ),
-              Text(
-                'Province of Rizal',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeaderIconButton extends StatelessWidget {
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  const _HeaderIconButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-      icon: Icon(icon, color: Colors.white, size: 21),
-    );
-  }
-}
-
-class _MunicipalityPill extends StatelessWidget {
-  final String label;
-  final bool hasSelection;
-  final VoidCallback onTap;
-
-  const _MunicipalityPill({
-    required this.label,
-    required this.hasSelection,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.location_city,
-                color: Color(0xFFFFC800),
-                size: 15,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                hasSelection ? '· Rizal' : '',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const Icon(
-                Icons.keyboard_arrow_down,
-                color: Color(0xFFFFC800),
-                size: 18,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1246,42 +989,6 @@ class _MunicipalityOption extends StatelessWidget {
   }
 }
 
-/// Bell icon with a live unread badge for the Notification Inbox.
-class _NotificationBell extends ConsumerWidget {
-  const _NotificationBell();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notifications = ref.watch(appNotificationsProvider);
-    final controller = ref.watch(notificationsControllerProvider);
-    final unread = controller.unreadCount(notifications);
-
-    return IconButton(
-      tooltip: 'Notifications',
-      onPressed: () => context.push('/notifications'),
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-      icon: Badge(
-        // The badge is hidden entirely when there is nothing unread.
-        isLabelVisible: unread > 0,
-        label: Text(unread > 9 ? '9+' : '$unread'),
-        backgroundColor: const Color(0xFFFFC800),
-        textColor: const Color(0xFF033300),
-        child: const Icon(
-          Icons.notifications_outlined,
-          color: Colors.white,
-          size: 22,
-        ),
-      ),
-    );
-  }
-}
-
-/// Provincial tourism banner fed by the web admin's Civic Broadcast action.
-///
-/// Broadcasts are approved, featured civic events whose title starts with
-/// "Civic Broadcast:" and whose 24-hour window includes now. Dismissal is local.
 class _CivicBroadcastBanner extends StatelessWidget {
   final Stream<List<EventItem>> announcements;
   final Set<String> dismissedIds;

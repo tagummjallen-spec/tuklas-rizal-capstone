@@ -114,11 +114,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 child: _otpSent ? _buildOtpStep() : _buildForm(),
               ),
               const SizedBox(height: 18),
-              const Text(
-                'Browsing as a guest? You can explore events and places '
-                'without signing in.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 11.5),
+              // Horizontal padding keeps the first glyph clear of the screen
+              // edge on narrow devices instead of clipping it.
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'Browsing as a guest? You can explore events and places '
+                  'without signing in.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 11.5),
+                ),
               ),
             ],
           ),
@@ -281,9 +286,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
+                    // Forest green reads clearly on the disabled button surface.
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: _forest,
                     ),
                   )
                 : Text(
@@ -399,7 +405,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     width: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: _forest,
                     ),
                   )
                 : const Text(
@@ -533,16 +539,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _busy = true;
     });
     try {
+      // Bounded so a stalled profile read can never leave the button spinning.
       final profile = await ref
           .read(authServiceProvider)
-          .signIn(_emailCtrl.text.trim(), _passwordCtrl.text);
+          .signIn(_emailCtrl.text.trim(), _passwordCtrl.text)
+          .timeout(const Duration(seconds: 10));
       await _afterAuth(profile);
-    } catch (e) {
+    } on TimeoutException {
       if (!mounted) return;
       setState(() {
-        _error = friendlyAuthError(e);
-        _busy = false;
+        _error = 'Sign-in is taking too long. Check your connection and try '
+            'again.';
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = friendlyAuthError(e));
+    } finally {
+      // Always clear the spinner, whether we navigated, timed out or failed.
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -586,22 +600,37 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
+  /// Leaves the login screen the moment the session exists.
+  ///
+  /// Profile hydration (interest sync + first-run check) runs afterwards with
+  /// its own 10-second budget, so a slow network never keeps the spinner up.
   Future<void> _afterAuth(UserProfile profile) async {
     if (!mounted || _navigated) return;
     _navigated = true;
-    final auth = ref.read(authServiceProvider);
-    var onboarded = true;
-    try {
-      onboarded = await auth.hasSavedInterests(profile.id);
-    } catch (_) {
-      // Assume a returning user if the lookup fails.
-    }
-    if (!mounted) return;
     setState(() => _busy = false);
-    if (onboarded) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
       context.go('/');
     }
-    // First-time users are routed to onboarding by the app-level bootstrap.
+    unawaited(_hydrateAfterSignIn(profile));
+  }
+
+  Future<void> _hydrateAfterSignIn(UserProfile profile) async {
+    try {
+      await _hydrateProfile(profile).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // Non-fatal: the app-level bootstrap retries interests after navigation.
+    }
+  }
+
+  Future<void> _hydrateProfile(UserProfile profile) async {
+    final auth = ref.read(authServiceProvider);
+    final onboarding = ref.read(onboardingControllerProvider);
+    if (onboarding.hasInterests) {
+      await auth.setUserInterests(profile.id, onboarding.interests);
+    }
+    await auth.hasSavedInterests(profile.id);
   }
 
   void _startResendCountdown() {

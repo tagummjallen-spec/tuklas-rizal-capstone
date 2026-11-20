@@ -222,7 +222,7 @@ class EventDetailPage extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
 
-              // ---- RSVP bar ------------------------------------------------
+              // ---- Engagement card ----------------------------------------
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -230,12 +230,13 @@ class EventDetailPage extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Container(
-                          width: 38,
-                          height: 38,
+                          width: 40,
+                          height: 40,
                           decoration: const BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
@@ -243,7 +244,7 @@ class EventDetailPage extends ConsumerWidget {
                           child: const Icon(
                             Icons.groups,
                             color: forest,
-                            size: 21,
+                            size: 22,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -260,7 +261,7 @@ class EventDetailPage extends ConsumerWidget {
                                   color: forest,
                                 ),
                               ),
-                              const SizedBox(height: 1),
+                              const SizedBox(height: 2),
                               AnimatedCount(
                                 value: rsvp.interestedCount(event.id),
                                 suffix: ' people interested',
@@ -274,7 +275,7 @@ class EventDetailPage extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -296,150 +297,129 @@ class EventDetailPage extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  _toggleBookmark(context, ref, event),
+                              icon: AnimatedBookmarkIcon(
+                                isSaved: isSaved,
+                                size: 18,
+                              ),
+                              label: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: Text(
+                                  isSaved ? 'Bookmarked' : 'Bookmark',
+                                  key: ValueKey<bool>(isSaved),
+                                  style: const TextStyle(fontSize: 12.5),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: forest,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                side: BorderSide(
+                                  color: isSaved
+                                      ? forest
+                                      : const Color(0xFFB9CDB6),
+                                  width: 1.4,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  _addToCalendar(context, event, municipality),
+                              icon: const Icon(Icons.calendar_month, size: 18),
+                              label: const Text(
+                                'Add to Calendar',
+                                style: TextStyle(fontSize: 12.5),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: actionGreen,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(height: 1, color: const Color(0xFFC9DCC6)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _HeartButton(
+                          liked: likes.isLiked(event.id),
+                          count: likes.hearts(event.id),
+                          onTap: () => _toggleLike(context, ref, event),
+                        ),
+                        const SizedBox(width: 12),
+                        const Icon(Icons.star_rounded, size: 18, color: gold),
+                        const SizedBox(width: 3),
+                        Text(
+                          rating.toStringAsFixed(1),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: forest,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '($reviewCount reviews)',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF4F6B4D),
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _openReviews(context, ref, event),
+                          style: TextButton.styleFrom(
+                            foregroundColor: forest,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 34),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'See all',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-
-              // ---- Bookmark + Add to Calendar ------------------------------
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _toggleBookmark(context, ref, event),
-                        icon: AnimatedBookmarkIcon(isSaved: isSaved, size: 19),
-                        label: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          child: Text(
-                            isSaved ? 'Bookmarked' : 'Bookmark',
-                            key: ValueKey<bool>(isSaved),
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: forest,
-                          side: const BorderSide(color: forest, width: 1.4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        onPressed: () =>
-                            _addToCalendar(context, event, municipality),
-                        icon: const Icon(Icons.calendar_month, size: 19),
-                        label: const Text('Add to Calendar'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: actionGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
               const SizedBox(height: 16),
-
-              // ---- Rating / hearts / reviews -------------------------------
-              Wrap(
-                spacing: 14,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        rating.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _Stars(value: rating, size: 15),
-                      const SizedBox(width: 4),
-                      Text(
-                        '($reviewCount)',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B6B6B),
-                        ),
-                      ),
-                    ],
-                  ),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => _toggleLike(context, ref, event),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            likes.isLiked(event.id)
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            size: 17,
-                            color: Colors.redAccent,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${likes.hearts(event.id)} Hearts',
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => _openReviews(context, ref, event),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.chat_bubble_outline,
-                            size: 16,
-                            color: forest,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$reviewCount Reviews',
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(height: 28),
 
               // ---- Description ---------------------------------------------
               const Text(
@@ -464,10 +444,9 @@ class EventDetailPage extends ConsumerWidget {
 
               // ---- Community reviews (inline) ------------------------------
               _ReviewsSection(
-                eventId: event.id,
+                event: event,
                 reviewGate: _reviewGateFor(ref, event),
                 onOpenAll: () => _openReviews(context, ref, event),
-                onWriteReview: () => _startReview(context, ref, event),
               ),
               const Divider(height: 28),
 
@@ -482,32 +461,74 @@ class EventDetailPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                (event.howToGetThere?.trim().isNotEmpty ?? false)
-                    ? event.howToGetThere!.trim()
-                    : 'Ride a jeepney or UV Express bound for $municipality '
-                          'from Shaw Blvd or Cubao, then take a tricycle to $venue.',
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                  color: Color(0xFF2A2A2A),
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Text(
+                  (event.howToGetThere?.trim().isNotEmpty ?? false)
+                      ? event.howToGetThere!.trim()
+                      : 'Ride a jeepney or UV Express bound for $municipality '
+                            'from Shaw Blvd or Cubao, then take a tricycle to '
+                            '$venue.',
+                  softWrap: true,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Color(0xFF2A2A2A),
+                  ),
                 ),
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.directions, size: 19),
-                  label: Text('Directions to $venue'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: forest,
-                    side: const BorderSide(color: Color(0xFFCFE0CB)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => _openDirections(context, event),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                  onPressed: () => _openDirections(context, event),
+                  foregroundColor: forest,
+                  side: const BorderSide(color: Color(0xFFCFE0CB)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.directions, size: 20, color: forest),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Directions',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: forest,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Directions to $venue',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              height: 1.3,
+                              color: Color(0xFF6B6B6B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.open_in_new,
+                      size: 15,
+                      color: Color(0xFF9A9A9A),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -1020,6 +1041,93 @@ class _RsvpChip extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Heart / like button
+// ---------------------------------------------------------------------------
+class _HeartButton extends StatefulWidget {
+  final bool liked;
+  final int count;
+  final VoidCallback onTap;
+
+  const _HeartButton({
+    required this.liked,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  State<_HeartButton> createState() => _HeartButtonState();
+}
+
+class _HeartButtonState extends State<_HeartButton> {
+  double _scale = 1;
+
+  void _pop() {
+    setState(() => _scale = 1.28);
+    Future<void>.delayed(const Duration(milliseconds: 130), () {
+      if (mounted) setState(() => _scale = 1);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final liked = widget.liked;
+    return Material(
+      color: liked ? const Color(0xFFFFEBEE) : Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          _pop();
+          widget.onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: liked
+                  ? const Color(0xFFE59A9A)
+                  : const Color(0xFFB9CDB6),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedScale(
+                scale: _scale,
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOut,
+                child: Icon(
+                  liked ? Icons.favorite : Icons.favorite_border,
+                  size: 18,
+                  color: liked
+                      ? Colors.redAccent
+                      : const Color(0xFF6B6B6B),
+                ),
+              ),
+              const SizedBox(width: 6),
+              AnimatedCount(
+                value: widget.count,
+                suffix: widget.count == 1 ? ' Heart' : ' Hearts',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: liked
+                      ? Colors.redAccent
+                      : const Color(0xFF4F6B4D),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Stars
 // ---------------------------------------------------------------------------
 class _Stars extends StatelessWidget {
@@ -1054,22 +1162,20 @@ class _Stars extends StatelessWidget {
 // Community reviews (inline section)
 // ---------------------------------------------------------------------------
 class _ReviewsSection extends ConsumerWidget {
-  final String eventId;
+  final EventItem event;
   final ReviewGate reviewGate;
   final VoidCallback onOpenAll;
-  final VoidCallback onWriteReview;
 
   const _ReviewsSection({
-    required this.eventId,
+    required this.event,
     required this.reviewGate,
     required this.onOpenAll,
-    required this.onWriteReview,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reviews = ref.watch(eventReviewsProvider);
-    final all = reviews.reviewsFor(eventId);
+    final all = reviews.reviewsFor(event.id);
     final preview = all.take(3).toList();
 
     return Column(
@@ -1091,34 +1197,40 @@ class _ReviewsSection extends ConsumerWidget {
           ],
         ),
         _RatingSummary(
-          rating: reviews.averageRating(eventId),
-          count: reviews.reviewCount(eventId),
+          rating: reviews.averageRating(event.id),
+          count: reviews.reviewCount(event.id),
         ),
         const SizedBox(height: 12),
         ReviewStatusBanner(
           message: reviewGate.message,
           positive: reviewGate.allowed,
         ),
-        const Divider(height: 20),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: onOpenAll,
-            icon: const Icon(Icons.chevron_left, size: 16),
-            label: const Text('Community Reviews'),
-            style: TextButton.styleFrom(
-              foregroundColor: EventDetailPage.forest,
-              padding: const EdgeInsets.symmetric(horizontal: 2),
+        // Guests only get the banner above — no review box they cannot use.
+        if (reviewGate.allowed) ...[
+          const SizedBox(height: 12),
+          _InlineReviewComposer(
+            event: event,
+            isEdit: reviewGate.isEdit,
+            existing: reviews.reviewByUser(
+              event.id,
+              ref.watch(verifiedAuthUserProvider)?.id,
             ),
           ),
-        ),
-        const SizedBox(height: 4),
+        ],
+        const SizedBox(height: 14),
         for (final review in preview) ...[
           _ReviewCard(review: review),
           const SizedBox(height: 10),
         ],
-        const SizedBox(height: 2),
-        _WriteReviewBar(onTap: onWriteReview),
+        if (all.length > preview.length)
+          TextButton(
+            onPressed: onOpenAll,
+            style: TextButton.styleFrom(
+              foregroundColor: EventDetailPage.forest,
+              padding: EdgeInsets.zero,
+            ),
+            child: Text('Read all ${all.length} reviews'),
+          ),
       ],
     );
   }
@@ -1165,31 +1277,46 @@ class _ReviewCard extends StatelessWidget {
 
   const _ReviewCard({required this.review});
 
+  static const List<Color> _avatarColors = [
+    Color(0xFF2E7D32),
+    Color(0xFF1B2C6B),
+    Color(0xFF8A5A00),
+    Color(0xFF00695C),
+    Color(0xFF6A1B4D),
+  ];
+
+  Color get _avatarColor {
+    if (review.author.isEmpty) return _avatarColors.first;
+    final seed = review.author.codeUnits.fold<int>(0, (sum, c) => sum + c);
+    return _avatarColors[seed % _avatarColors.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F3F4),
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3E8E1)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            radius: 18,
-            backgroundColor: const Color(0xFFC8C8C8),
+            radius: 20,
+            backgroundColor: _avatarColor,
             child: Text(
               review.author.isEmpty ? '?' : review.author[0].toUpperCase(),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontSize: 15,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1198,39 +1325,54 @@ class _ReviewCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        review.author.toUpperCase(),
+                        review.author,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.3,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
                           color: Color(0xFF1B1B1B),
                         ),
                       ),
                     ),
-                    const Icon(
-                      Icons.star_rounded,
-                      size: 14,
-                      color: EventDetailPage.gold,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      '${review.rating}/5',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B6B6B),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF6DA),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 13,
+                            color: Color(0xFFE0A800),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${review.rating}.0',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF8A6A00),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 6),
                 Text(
-                  '“${review.text}”',
+                  review.text,
                   style: const TextStyle(
                     fontSize: 12.5,
-                    height: 1.45,
+                    height: 1.5,
                     color: Color(0xFF3A3A3A),
                   ),
                 ),
@@ -1243,40 +1385,248 @@ class _ReviewCard extends StatelessWidget {
   }
 }
 
-class _WriteReviewBar extends StatelessWidget {
-  final VoidCallback onTap;
+/// Inline review composer for signed-in, eligible attendees: a 1–5 star picker
+/// sits directly above the text box, so no extra sheet is needed.
+class _InlineReviewComposer extends ConsumerStatefulWidget {
+  final EventItem event;
+  final bool isEdit;
+  final EventReview? existing;
 
-  const _WriteReviewBar({required this.onTap});
+  const _InlineReviewComposer({
+    required this.event,
+    required this.isEdit,
+    this.existing,
+  });
+
+  @override
+  ConsumerState<_InlineReviewComposer> createState() =>
+      _InlineReviewComposerState();
+}
+
+class _InlineReviewComposerState extends ConsumerState<_InlineReviewComposer> {
+  final _controller = TextEditingController();
+  int _rating = 5;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _rating = existing.rating.clamp(1, 5);
+      _controller.text = existing.text;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    if (!isValidRating(_rating)) {
+      setState(() => _error = 'Choose a rating from 1 to 5 stars.');
+      return;
+    }
+    final validation = validateReviewText(_controller.text);
+    if (validation != null) {
+      setState(() => _error = validation);
+      return;
+    }
+    final user = ref.read(verifiedAuthUserProvider);
+    if (user == null) {
+      setState(() => _error = 'Sign in with a verified email to review.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final posted = await ref
+          .read(eventReviewsProvider)
+          .addReview(
+            eventId: widget.event.id,
+            author: user.fullName,
+            rating: _rating,
+            text: sanitizeReviewText(_controller.text),
+            userId: user.id,
+          );
+      if (!mounted) return;
+      if (!posted) {
+        setState(() {
+          _submitting = false;
+          _error = 'Your review could not be saved. Please try again.';
+        });
+        return;
+      }
+      _controller.clear();
+      setState(() => _submitting = false);
+      FocusScope.of(context).unfocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEdit
+                ? 'Review updated. Thank you!'
+                : 'Review posted. Thank you!',
+          ),
+          backgroundColor: EventDetailPage.forest,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'Something went wrong while posting. Please try again.';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFDADFDA)),
-          ),
-          child: const Row(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3E8E1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Icon(Icons.edit_note, size: 20, color: Color(0xFF7A7A7A)),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Write a review...',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF8A8A8A)),
+              Text(
+                widget.isEdit ? 'Update your rating' : 'Rate this event',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: EventDetailPage.forest,
                 ),
               ),
-              Icon(Icons.send_rounded, size: 18, color: EventDetailPage.forest),
+              const Spacer(),
+              Text(
+                '$_rating/5',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF6B6B6B),
+                ),
+              ),
             ],
           ),
-        ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              for (var i = 1; i <= 5; i++)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 38,
+                    minHeight: 38,
+                  ),
+                  tooltip: '$i star${i == 1 ? '' : 's'}',
+                  onPressed: () => setState(() => _rating = i),
+                  icon: Icon(
+                    i <= _rating
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    color: EventDetailPage.gold,
+                    size: 28,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _controller,
+            minLines: 3,
+            maxLines: 5,
+            maxLength: reviewMaxChars,
+            textInputAction: TextInputAction.newline,
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            decoration: InputDecoration(
+              hintText: 'Write a review...',
+              hintStyle: const TextStyle(fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFFF7F6F2),
+              contentPadding: const EdgeInsets.all(12),
+              counterStyle: const TextStyle(fontSize: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFDADFDA)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFDADFDA)),
+              ),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  size: 15,
+                  color: Color(0xFFB3261E),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      height: 1.4,
+                      color: Color(0xFFB3261E),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              onPressed: _submitting ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: EventDetailPage.actionGreen,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+              ),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      widget.isEdit ? 'Save changes' : 'Post review',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1611,7 +1961,23 @@ class _ReviewsSheet extends ConsumerWidget {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-              child: _WriteReviewBar(onTap: onWriteReview),
+              child: SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: onWriteReview,
+                  icon: const Icon(Icons.edit_note, size: 19),
+                  label: const Text('Write a review'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: EventDetailPage.actionGreen,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(23),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ],

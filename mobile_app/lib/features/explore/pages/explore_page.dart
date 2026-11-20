@@ -9,11 +9,10 @@ import '../../../core/utils/interest_matcher.dart';
 import '../../../core/utils/maps_launcher.dart';
 import '../../../core/utils/promotion_reason.dart';
 import '../../../core/utils/tourism_images.dart';
-import '../../../core/widgets/ai_guide_button.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/poi_card.dart';
 import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/tuklas_page_header.dart';
+import '../../../core/widgets/tuklas_main_header.dart';
 import '../../../models/poi_logistics.dart';
 import '../../../services/lookup_service.dart';
 
@@ -29,6 +28,7 @@ class ExplorePage extends ConsumerStatefulWidget {
 
 class _ExplorePageState extends ConsumerState<ExplorePage> {
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
   String _query = '';
   String? _municipalityId;
   String? _barangay;
@@ -38,6 +38,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -64,15 +65,18 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       resizeToAvoidBottomInset: false,
       body: Column(
         children: [
-          const TuklasPageHeader(
-            title: 'Explore Rizal',
-            subtitle: 'Destinations, heritage sites and local flavors',
-            actions: [AiGuideButton()],
+          TuklasMainHeader(
+            onSearch: _searchFocus.requestFocus,
+            bottomRow: const TuklasHeaderHeading(
+              title: 'Explore Rizal',
+              subtitle: 'Destinations, heritage sites and local flavors',
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: TextField(
               controller: _searchCtrl,
+              focusNode: _searchFocus,
               onChanged: (value) => setState(() => _query = value),
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
@@ -802,28 +806,79 @@ class PoiDetailPage extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               if (poi.howToGetThere != null && poi.howToGetThere!.isNotEmpty)
-                Text(
-                  poi.howToGetThere!,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.5,
-                    color: Theme.of(context).colorScheme.onSurface,
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Text(
+                    poi.howToGetThere!,
+                    softWrap: true,
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.5,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('Open in Google Maps'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.primary,
-                    side: BorderSide(
+              OutlinedButton(
+                onPressed: () => _openDirections(context, poi),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.map_outlined,
+                      size: 20,
                       color: Theme.of(context).colorScheme.primary,
                     ),
-                  ),
-                  onPressed: () => _openDirections(context, poi),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Open in Google Maps',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            poi.address?.trim().isNotEmpty == true
+                                ? poi.address!.trim()
+                                : poi.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              height: 1.3,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.open_in_new,
+                      size: 15,
+                      color: Color(0xFF9A9A9A),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),

@@ -34,9 +34,14 @@ Future<void> confirmAndSignOut(BuildContext context, WidgetRef ref) async {
         'guest, but saved sync and RSVPs require an account.',
         style: TextStyle(fontSize: 13.5, height: 1.45),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(88, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          ),
           child: const Text('Cancel'),
         ),
         ElevatedButton(
@@ -45,7 +50,13 @@ Future<void> confirmAndSignOut(BuildContext context, WidgetRef ref) async {
             backgroundColor: _forest,
             foregroundColor: Colors.white,
             elevation: 0,
+            minimumSize: const Size(96, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
             shape: const StadiumBorder(),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           child: const Text('Log Out'),
         ),
