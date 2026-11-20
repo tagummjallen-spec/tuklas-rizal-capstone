@@ -180,6 +180,22 @@ class EventDetailPage extends ConsumerWidget {
                   height: 1.25,
                 ),
               ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _InfoBadge(
+                    icon: Icons.place_outlined,
+                    label: '$municipality, Rizal',
+                  ),
+                  if (category.trim().isNotEmpty)
+                    _InfoBadge(
+                      icon: Icons.local_activity_outlined,
+                      label: category,
+                    ),
+                ],
+              ),
               const SizedBox(height: 14),
 
               // ---- Metadata rows ------------------------------------------
@@ -494,6 +510,27 @@ class EventDetailPage extends ConsumerWidget {
                   onPressed: () => _openDirections(context, event),
                 ),
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () => _askAiGuide(context, event, municipality),
+                  icon: const Icon(Icons.auto_awesome, size: 20),
+                  label: const Text(
+                    'Ask AI Guide About This',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: gold,
+                    foregroundColor: forest,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
 
               // ---- Tourism coordinator -------------------------------------
@@ -703,13 +740,24 @@ class EventDetailPage extends ConsumerWidget {
     }
   }
 
+  /// Pre-fills the AI Tour Guide with a grounded question about this event.
+  void _askAiGuide(
+    BuildContext context,
+    EventItem event,
+    String municipality,
+  ) {
+    final question =
+        'Tell me about ${event.title} in $municipality, Rizal — '
+        'the schedule, highlights, and how to get there.';
+    context.go('/assistant?q=${Uri.encodeQueryComponent(question)}');
+  }
+
   Future<void> _openInquiry(
     BuildContext context,
     WidgetRef ref,
     EventItem event,
     String contact,
-  ) async {
-    final signedIn = await requireSignIn(
+  ) async {    final signedIn = await requireSignIn(
       context,
       ref,
       action: 'message $contact',
@@ -855,6 +903,43 @@ class _DetailRow extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Info badge (municipality / category)
+// ---------------------------------------------------------------------------
+class _InfoBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _InfoBadge({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE7F0E4),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFCFE0CB)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: EventDetailPage.forest),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: EventDetailPage.forest,
+            ),
+          ),
+        ],
       ),
     );
   }

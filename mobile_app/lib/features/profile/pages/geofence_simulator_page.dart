@@ -5,8 +5,8 @@ import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../services/geofence_service.dart';
 
-/// Geofence Simulator — developer debug toggle to trigger municipal entry
-/// alerts without physically visiting each town.
+/// Town Welcome Alert Preview — lets visitors preview municipal entry alerts
+/// without physically visiting each town.
 class GeofenceSimulatorPage extends ConsumerStatefulWidget {
   const GeofenceSimulatorPage({super.key});
 
@@ -25,7 +25,7 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Demo: Simulate Town Entry'),
+        title: const Text('Preview Town Welcome Alert'),
         centerTitle: true,
       ),
       body: StreamBuilder<GeofenceEntry>(
@@ -36,7 +36,7 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
             padding: const EdgeInsets.all(16),
             children: [
               const Text(
-                'Simulate Geofence Entry',
+                'Town Welcome Alert Preview',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -45,15 +45,14 @@ class _GeofenceSimulatorPageState extends ConsumerState<GeofenceSimulatorPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Trigger a live municipal welcome alert to test cultural '
-                'banners during the capstone defense — no physical travel '
-                'required.',
+                'Preview the cultural welcome banner for any of the 14 Rizal '
+                'municipalities — no physical travel required.',
                 style: TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
               ),
               const SizedBox(height: 20),
               SwitchListTile(
                 title: const Text(AppConstants.geofenceDebugToggleLabel),
-                subtitle: const Text('Demo mode for staged entry alerts'),
+                subtitle: const Text('Enable preview mode for welcome alerts'),
                 value: _debugEnabled,
                 activeThumbColor: const Color(0xFF033300),
                 onChanged: (v) {

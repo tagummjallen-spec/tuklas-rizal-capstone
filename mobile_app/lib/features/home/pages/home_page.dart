@@ -53,7 +53,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final discovery = ref.read(discoveryServiceProvider);
+    final discovery = ref.watch(discoveryServiceProvider);
     final labels = ref.watch(lookupsProvider).valueOrNull ?? LookupTables.empty;
     final saved = ref.watch(savedPlacesProvider);
     final settings = ref.watch(appSettingsProvider);
@@ -100,9 +100,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(lookupsProvider);
-        },
+        onRefresh: () => refreshTravelData(ref),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),

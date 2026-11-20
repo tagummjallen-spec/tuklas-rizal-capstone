@@ -694,7 +694,7 @@ class MockAuthService implements AuthService {
     _user = UserProfile(
       id: 'mock-user-1',
       email: email,
-      fullName: 'Demo Resident',
+      fullName: 'Rizal Traveler',
       roleTier: 0,
       municipalityId: 'taytay',
     );
@@ -744,7 +744,7 @@ class MockAuthService implements AuthService {
 
   @override
   Future<bool> signInWithGoogle() async {
-    await signIn('demo@tuklasrizal.app', 'google-demo');
+    await signIn('traveler@tuklasrizal.app', 'google-demo');
     return true;
   }
 
@@ -764,7 +764,7 @@ class MockAuthService implements AuthService {
     if (token.trim().length != 6) {
       throw Exception('Enter the 6-digit code from your email.');
     }
-    return signUp(email, 'otp-demo', 'Demo Resident');
+    return signUp(email, 'otp-demo', 'Rizal Traveler');
   }
 
   @override

@@ -21,7 +21,11 @@ const List<String> _starterPrompts = <String>[
 /// Live AI Tour Guide — Groq + Gemini fallback RAG answers grounded in the
 /// approved events, POIs and tourism-office records stored in Supabase.
 class AssistantPage extends ConsumerStatefulWidget {
-  const AssistantPage({super.key});
+  const AssistantPage({super.key, this.initialQuestion});
+
+  /// Optional question passed from an event or POI detail page. When present it
+  /// is placed in the composer so the visitor can send it immediately.
+  final String? initialQuestion;
 
   @override
   ConsumerState<AssistantPage> createState() => _AssistantPageState();
@@ -36,6 +40,27 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
   bool _sending = false;
   bool _retrying = false;
   bool _clearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyInitialQuestion();
+  }
+
+  @override
+  void didUpdateWidget(covariant AssistantPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialQuestion != widget.initialQuestion) {
+      _applyInitialQuestion();
+    }
+  }
+
+  void _applyInitialQuestion() {
+    final question = widget.initialQuestion?.trim();
+    if (question == null || question.isEmpty) return;
+    _inputCtrl.text = question;
+    _inputCtrl.selection = TextSelection.collapsed(offset: question.length);
+  }
 
   @override
   void dispose() {

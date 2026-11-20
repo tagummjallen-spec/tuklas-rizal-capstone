@@ -189,3 +189,19 @@ final myInquiriesProvider = StreamProvider<List<CoordinatorInquiry>>((ref) {
   if (initial == null) return Stream.value(const <CoordinatorInquiry>[]);
   return ref.watch(coordinatorServiceProvider).getMyInquiries(initial.id);
 });
+
+/// Pull-to-refresh hook shared by Home, Explore, Events and the Coordinator
+/// Directory. Re-subscribes to the live Supabase streams and reloads the
+/// lookup labels, awaiting the network briefly so the spinner feels honest.
+Future<void> refreshTravelData(WidgetRef ref) async {
+  ref.invalidate(discoveryServiceProvider);
+  ref.invalidate(lookupsProvider);
+  try {
+    await Future.wait<void>([
+      ref.read(lookupsProvider.future),
+      ref.read(municipalitiesProvider.future),
+    ]).timeout(const Duration(seconds: 8));
+  } catch (_) {
+    // Keep the existing UI; the streams continue to retry in the background.
+  }
+}

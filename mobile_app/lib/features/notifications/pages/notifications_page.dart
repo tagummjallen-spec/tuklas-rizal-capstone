@@ -325,6 +325,26 @@ class _EmptyInbox extends StatelessWidget {
                 color: scheme.onSurfaceVariant,
               ),
             ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              onPressed: () => context.go('/explore'),
+              icon: const Icon(Icons.explore_outlined, size: 18),
+              label: const Text('Explore Rizal'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark
+                    ? scheme.primary
+                    : const Color(0xFF033300),
+                foregroundColor: isDark
+                    ? const Color(0xFF06210F)
+                    : Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
+                shape: const StadiumBorder(),
+              ),
+            ),
           ],
         ),
       ),

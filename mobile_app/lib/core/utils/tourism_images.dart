@@ -134,9 +134,10 @@ class TourismImages {
   }
 
   /// Gradient placeholder used only if even the fallback photo cannot load.
-  static Widget fallback({double? height, BoxFit fit = BoxFit.cover}) {
+  static Widget fallback({double? height, double? width, BoxFit fit = BoxFit.cover}) {
     return Container(
       height: height,
+      width: width,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -144,8 +145,63 @@ class TourismImages {
           colors: [Color(0xFF033300), Color(0xFF2F6B2A)],
         ),
       ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFC800).withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFFFC800).withValues(alpha: 0.65),
+                ),
+              ),
+              child: const Icon(
+                Icons.landscape_outlined,
+                color: Color(0xFFFFC800),
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'TuklasRizal',
+              style: TextStyle(
+                color: Color(0xFFFFC800),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Calm loading placeholder that mirrors the final photo dimensions so cards
+  /// never jump when the image arrives.
+  static Widget loading({double? height, double? width}) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE7EFE4), Color(0xFFF3F6F0)],
+        ),
+      ),
       child: const Center(
-        child: Icon(Icons.landscape, color: Color(0xFFFFC800), size: 36),
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.2,
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2F6B2A)),
+          ),
+        ),
       ),
     );
   }
@@ -186,15 +242,24 @@ class TourismImage extends StatelessWidget {
       height: height,
       width: width,
       fit: fit,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return Container(
-          height: height,
-          color: const Color(0xFFEAF0E8),
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded) return child;
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          child: frame == null
+              ? TourismImages.loading(height: height, width: width)
+              : child,
         );
       },
-      errorBuilder: (context, error, stackTrace) =>
-          TourismImages.fallback(height: height, fit: fit),
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return TourismImages.loading(height: height, width: width);
+      },
+      errorBuilder: (context, error, stackTrace) => TourismImages.fallback(
+        height: height,
+        width: width,
+        fit: fit,
+      ),
     );
 
     if (borderRadius == null) return image;

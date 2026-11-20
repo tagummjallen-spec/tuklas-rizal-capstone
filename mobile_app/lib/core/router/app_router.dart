@@ -140,11 +140,14 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/assistant',
           name: 'assistant',
-          pageBuilder: (context, state) => fadeSlidePage(
-            context: context,
-            state: state,
-            child: const AssistantPage(),
-          ),
+          pageBuilder: (context, state) {
+            final question = state.uri.queryParameters['q'];
+            return fadeSlidePage(
+              context: context,
+              state: state,
+              child: AssistantPage(initialQuestion: question),
+            );
+          },
         ),
         GoRoute(
           path: '/profile',

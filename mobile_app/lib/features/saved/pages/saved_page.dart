@@ -556,11 +556,8 @@ class _EmptySaved extends StatelessWidget {
             const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: onBrowse,
-              icon: Icon(
-                isPlaces ? Icons.explore_outlined : Icons.event_outlined,
-                size: 18,
-              ),
-              label: Text(isPlaces ? 'Explore places' : 'Browse events'),
+              icon: const Icon(Icons.explore_outlined, size: 18),
+              label: const Text('Explore Rizal'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isDark ? scheme.primary : _SavedPageState.forest,
                 foregroundColor: isDark

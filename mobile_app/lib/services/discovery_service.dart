@@ -65,7 +65,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       howToGetThere:
           'Ride a jeepney or UV Express bound for Angono from Shaw Blvd or Cubao; '
           'alight at Angono Town Plaza.',
-      imageUrl: 'https://via.placeholder.com/600x400?text=Higantes+Festival',
+      imageUrl: null,
       isFeatured: true,
       promotionWeight: 1.3,
       createdAt: DateTime(2026, 10, 1),
@@ -84,7 +84,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       howToGetThere:
           'Take a Binangonan-bound jeepney via Manila East Road and alight at '
           'Binangonan Municipal Hall.',
-      imageUrl: 'https://via.placeholder.com/600x400?text=Petroglyphs',
+      imageUrl: null,
       promotionWeight: 1.1,
       createdAt: DateTime(2026, 10, 5),
       updatedAt: DateTime(2026, 10, 5),
@@ -102,7 +102,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       howToGetThere:
           'Take a Taytay/Angono jeepney along Ortigas Avenue Extension and alight '
           'at Taytay Tiangge.',
-      imageUrl: 'https://via.placeholder.com/600x400?text=Taytay+Tiangge',
+      imageUrl: null,
       isFeatured: true,
       promotionWeight: 1.2,
       createdAt: DateTime(2026, 10, 10),
@@ -122,7 +122,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       howToGetThere: 'Charter a tricycle from Angono Poblacion.',
       operatingHours: '8:00 AM - 4:00 PM (Tue-Sun)',
       entranceFee: 'Free',
-      imageUrl: 'https://via.placeholder.com/600x400?text=Angono+Petroglyphs',
+      imageUrl: null,
       isPromoted: true,
     ),
     PoiLogistics(
@@ -134,8 +134,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       poiType: 'heritage_site',
       address: 'Binangonan, Rizal',
       howToGetThere: 'Short tricycle ride from Binangonan Poblacion.',
-      imageUrl:
-          'https://via.placeholder.com/600x400?text=Binangonan+Petroglyphs',
+      imageUrl: null,
     ),
     PoiLogistics(
       id: 'poi-3',
@@ -146,7 +145,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       poiType: 'heritage_site',
       address: 'Taytay, Rizal',
       howToGetThere: 'Alight at Taytay Municipal Hall and walk to the plaza.',
-      imageUrl: 'https://via.placeholder.com/600x400?text=Santa+Ana+Church',
+      imageUrl: null,
     ),
     PoiLogistics(
       id: 'poi-4',
@@ -158,7 +157,7 @@ class SupabaseDiscoveryService implements DiscoveryService {
       address: 'Angono, Rizal',
       operatingHours: '10:00 AM - 9:00 PM Daily',
       entranceFee: 'Free Gallery Entry',
-      imageUrl: 'https://via.placeholder.com/600x400?text=Balaw-Balaw',
+      imageUrl: null,
       isPromoted: true,
     ),
   ];

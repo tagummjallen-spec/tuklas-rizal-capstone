@@ -448,7 +448,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         ),
                       ),
                       subtitle: const Text(
-                        'Prototype v1.0 Capstone Project',
+                        'TuklasRizal · Rizal Provincial Tourism Office',
                         style: TextStyle(fontSize: 12),
                       ),
                       trailing: const Icon(Icons.chevron_right),
@@ -532,7 +532,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const SizedBox(height: 24),
                 Center(
                   child: Text(
-                    'TuklasRizal · Prototype v1.0',
+                    'TuklasRizal · Province of Rizal',
                     style: TextStyle(
                       fontSize: 11,
                       color: scheme.onSurfaceVariant,
@@ -751,8 +751,8 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-/// Indoor demo of municipal geofence entry — works without a GPS fix so the
-/// welcome banner can be shown reliably during the capstone defense.
+/// Indoor preview of municipal geofence entry — works without a GPS fix so the
+/// welcome banner can be shown reliably to any visitor.
 class _DemoTownEntryPicker extends ConsumerStatefulWidget {
   const _DemoTownEntryPicker();
 
@@ -782,13 +782,13 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Demo: Simulate Town Entry',
+            'Preview Town Welcome Alert',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
-            'Pick any of the 14 towns to trigger the cultural welcome banner '
-            'indoors.',
+            'Preview the cultural welcome banner for any of the 14 Rizal '
+            'municipalities.',
             style: TextStyle(
               fontSize: 12,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -852,8 +852,8 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'Could not simulate that town. Please pick '
-                                  'another.',
+                                  'Could not preview that municipality. '
+                                  'Please pick another.',
                                 ),
                                 backgroundColor: Color(0xFF033300),
                               ),
@@ -863,7 +863,8 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Simulated entry to ${selected?.name ?? 'town'}',
+                                'Previewed the welcome alert for '
+                                '${selected?.name ?? 'this municipality'}',
                               ),
                               backgroundColor: const Color(0xFF033300),
                               duration: const Duration(seconds: 2),
@@ -874,8 +875,8 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Could not simulate town entry. Please try '
-                                'again.',
+                                'Could not preview the welcome alert. Please '
+                                'try again.',
                               ),
                               backgroundColor: Color(0xFF033300),
                             ),
@@ -891,7 +892,7 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text(
-                        'Trigger',
+                        'Preview',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,

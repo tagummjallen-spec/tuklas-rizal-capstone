@@ -34,8 +34,7 @@ class AppConstants {
 
   // Geofence
   static const String geofenceWelcomeAlertTitle = 'Welcome to {municipality}!';
-  static const String geofenceDebugToggleLabel =
-      'Simulate Geofence Entry (Dev)';
+  static const String geofenceDebugToggleLabel = 'Welcome Alert Preview';
 
   // Provincial Tourism Office support contacts (source: rizalprovince.ph).
   static const String tourismOfficeName = 'Rizal Provincial Tourism Office';

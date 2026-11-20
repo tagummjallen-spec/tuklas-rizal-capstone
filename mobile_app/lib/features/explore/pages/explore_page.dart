@@ -43,7 +43,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
-    final discovery = ref.read(discoveryServiceProvider);
+    final discovery = ref.watch(discoveryServiceProvider);
     final labels = ref.watch(lookupsProvider).valueOrNull ?? LookupTables.empty;
     final saved = ref.watch(savedPlacesProvider);
     final settings = ref.watch(appSettingsProvider);
@@ -167,7 +167,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<PoiLogistics>>(
+            child: RefreshIndicator(
+              onRefresh: () => refreshTravelData(ref),
+              child: StreamBuilder<List<PoiLogistics>>(
               stream: discovery.pois,
               builder: (context, snap) {
                 final all = snap.data ?? const <PoiLogistics>[];
@@ -188,33 +190,37 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                       _categoryId != null ||
                       _promotedOnly ||
                       _query.trim().isNotEmpty;
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.travel_explore,
-                          size: 40,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'No places match your search.',
-                          style: TextStyle(color: scheme.onSurfaceVariant),
-                        ),
-                        if (filtered)
-                          TextButton(
-                            onPressed: _clearFilters,
-                            child: Text(
-                              'Clear filters',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: scheme.primary,
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(24, 72, 24, 24),
+                    children: [
+                      Column(
+                        children: [
+                          Icon(
+                            Icons.travel_explore,
+                            size: 40,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'No places match your search.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: scheme.onSurfaceVariant),
+                          ),
+                          if (filtered)
+                            TextButton(
+                              onPressed: _clearFilters,
+                              child: Text(
+                                'Clear filters',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.primary,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   );
                 }
 
@@ -319,6 +325,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                 );
               },
             ),
+            ),
           ),
         ],
       ),
@@ -419,7 +426,7 @@ class _PoiListSkeleton extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: 3,
-      physics: const NeverScrollableScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemBuilder: (_, _) => const Padding(
         padding: EdgeInsets.only(bottom: 16),
         child: EventCardSkeleton(height: 248),
@@ -740,6 +747,24 @@ class PoiDetailPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _PoiBadge(
+                    icon: Icons.place_outlined,
+                    label: labels.municipality(poi.municipalityId),
+                  ),
+                  if ((poi.poiType ?? labels.category(poi.categoryId))
+                      .trim()
+                      .isNotEmpty)
+                    _PoiBadge(
+                      icon: Icons.local_activity_outlined,
+                      label: poi.poiType ?? labels.category(poi.categoryId),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
               if (poi.address != null)
                 Text(
                   poi.address!,
@@ -799,6 +824,27 @@ class PoiDetailPage extends ConsumerWidget {
                     ),
                   ),
                   onPressed: () => _openDirections(context, poi),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.auto_awesome, size: 20),
+                  label: const Text(
+                    'Ask AI Guide About This',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFC800),
+                    foregroundColor: const Color(0xFF033300),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => _askAiGuide(context, poi, labels),
                 ),
               ),
               const SizedBox(height: 24),
@@ -869,6 +915,55 @@ class PoiDetailPage extends ConsumerWidget {
     );
     if (!signedIn || !context.mounted) return;
     context.push('/inquiry/$municipalityId');
+  }
+
+  /// Pre-fills the AI Tour Guide with a grounded question about this place.
+  void _askAiGuide(
+    BuildContext context,
+    PoiLogistics poi,
+    LookupTables labels,
+  ) {
+    final municipality = labels.municipality(poi.municipalityId);
+    final question =
+        'Tell me about ${poi.name} in $municipality, Rizal — '
+        'what to expect, best time to visit, and how to get there.';
+    context.go('/assistant?q=${Uri.encodeQueryComponent(question)}');
+  }
+}
+
+/// Small municipality / category badge used on the place detail screen.
+class _PoiBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _PoiBadge({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: scheme.primary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: scheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

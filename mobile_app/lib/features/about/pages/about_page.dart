@@ -214,7 +214,7 @@ class AboutPage extends StatelessWidget {
             icon: Icons.school_outlined,
             title: 'Project & governance',
             body:
-                'TuklasRizal · Prototype v1.0 Capstone Project.\n\n'
+                'TuklasRizal · Provincial Culture, Arts and Tourism Office.\n\n'
                 'Built in collaboration with the Rizal Provincial Tourism '
                 'Office and the municipal tourism offices of the 14 '
                 'municipalities. Event and place data is reviewed by the '
@@ -241,7 +241,7 @@ class AboutPage extends StatelessWidget {
           Center(
             child: Text(
               'TuklasRizal · Rizal Provincial Tourism Office\n'
-              'Prototype v1.0 Capstone Project',
+              'Province of Rizal',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,

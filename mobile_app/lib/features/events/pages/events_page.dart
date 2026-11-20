@@ -45,7 +45,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final discovery = ref.read(discoveryServiceProvider);
+    final discovery = ref.watch(discoveryServiceProvider);
     final labels = ref.watch(lookupsProvider).valueOrNull ?? LookupTables.empty;
     final saved = ref.watch(savedPlacesProvider);
     final scheme = Theme.of(context).colorScheme;
@@ -167,7 +167,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
           ),
           const SizedBox(height: 6),
           Expanded(
-            child: StreamBuilder<List<EventItem>>(
+            child: RefreshIndicator(
+              onRefresh: () => refreshTravelData(ref),
+              child: StreamBuilder<List<EventItem>>(
               stream: discovery.promoteTownsAndEvents,
               builder: (context, snap) {
                 final all = snap.data ?? const <EventItem>[];
@@ -177,37 +179,41 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const _EventListSkeleton();
                   }
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.event_busy,
-                          size: 40,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _view == _EventsView.thisMonth
-                              ? 'No events left this month.'
-                              : 'No events match your search.',
-                          style: TextStyle(color: scheme.onSurfaceVariant),
-                        ),
-                        if (_view == _EventsView.thisMonth)
-                          TextButton(
-                            onPressed: () => setState(
-                              () => _view = _EventsView.upcoming,
-                            ),
-                            child: Text(
-                              'See all upcoming events',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: scheme.primary,
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(24, 72, 24, 96),
+                    children: [
+                      Column(
+                        children: [
+                          Icon(
+                            Icons.event_busy,
+                            size: 40,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _view == _EventsView.thisMonth
+                                ? 'No events left this month.'
+                                : 'No events match your search.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: scheme.onSurfaceVariant),
+                          ),
+                          if (_view == _EventsView.thisMonth)
+                            TextButton(
+                              onPressed: () => setState(
+                                () => _view = _EventsView.upcoming,
+                              ),
+                              child: Text(
+                                'See all upcoming events',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.primary,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   );
                 }
                 if (_view == _EventsView.calendar) {
@@ -256,6 +262,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   },
                 );
               },
+            ),
             ),
           ),
         ],
@@ -625,7 +632,7 @@ class _EventListSkeleton extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: 3,
-      physics: const NeverScrollableScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemBuilder: (_, _) => const Padding(
         padding: EdgeInsets.only(bottom: 16),
         child: EventCardSkeleton(),

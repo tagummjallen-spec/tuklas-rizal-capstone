@@ -443,8 +443,8 @@ class _SubmitContentPageState extends ConsumerState<SubmitContentPage> {
         SnackBar(
           content: Text(
             !AppConstants.isSupabaseConfigured
-                ? 'Demo mode: your submission was not saved because the '
-                    'backend is not configured.'
+                ? 'Your submission could not be saved because the service is '
+                    'temporarily unavailable. Please try again shortly.'
                 : _isEvent
                     ? 'Event submitted! The Tourism Coordinator will review it.'
                     : 'Place submitted! The Tourism Coordinator will review it.',

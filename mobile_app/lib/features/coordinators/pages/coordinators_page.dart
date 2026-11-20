@@ -36,7 +36,7 @@ class _CoordinatorsPageState extends ConsumerState<CoordinatorsPage> {
 
   // Cache the realtime directory stream so search/filter rebuilds don't
   // resubscribe (which would flash an empty list on every keystroke).
-  late final Stream<List<Municipality>> _directoryStream;
+  late Stream<List<Municipality>> _directoryStream;
 
   @override
   void initState() {
@@ -44,6 +44,20 @@ class _CoordinatorsPageState extends ConsumerState<CoordinatorsPage> {
     _directoryStream = ref
         .read(coordinatorServiceProvider)
         .coordinatorDirectory;
+  }
+
+  /// Pull-to-refresh: re-subscribe to the live directory and reload labels.
+  Future<void> _refresh() async {
+    final stream = ref.read(coordinatorServiceProvider).coordinatorDirectory;
+    setState(() => _directoryStream = stream);
+    ref.invalidate(lookupsProvider);
+    try {
+      await ref
+          .read(municipalitiesProvider.future)
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Keep the current directory visible; the stream keeps retrying.
+    }
   }
 
   @override
@@ -110,15 +124,18 @@ class _CoordinatorsPageState extends ConsumerState<CoordinatorsPage> {
           style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
         ),
       ),
-      body: StreamBuilder<List<Municipality>>(
-        stream: _directoryStream,
-        builder: (context, snap) {
-          final all = snap.data ?? const <Municipality>[];
-          final filtered = _applyFilters(all);
-          final districts = _districtCounts(all);
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: StreamBuilder<List<Municipality>>(
+          stream: _directoryStream,
+          builder: (context, snap) {
+            final all = snap.data ?? const <Municipality>[];
+            final filtered = _applyFilters(all);
+            final districts = _districtCounts(all);
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
             children: [
               _DirectoryHero(total: all.length),
               const SizedBox(height: 14),
@@ -207,7 +224,8 @@ class _CoordinatorsPageState extends ConsumerState<CoordinatorsPage> {
                   ),
             ],
           );
-        },
+          },
+        ),
       ),
     );
   }
