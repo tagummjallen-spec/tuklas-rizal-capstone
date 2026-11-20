@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/tuklas_colors.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -34,10 +35,17 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
   static const int maxDocs = 3;
   static const int maxDocBytes = 10 * 1024 * 1024;
   static const Set<String> allowedDocExtensions = {
-    'pdf', 'jpg', 'jpeg', 'png', 'webp',
+    'pdf',
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
   };
   static const Set<String> allowedDocMimeTypes = {
-    'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
   };
 
   final _formKey = GlobalKey<FormState>();
@@ -224,9 +232,7 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
         TextFormField(
           controller: _nameCtrl,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            hintText: 'Juan Dela Cruz',
-          ),
+          decoration: const InputDecoration(hintText: 'Juan Dela Cruz'),
           validator: (value) {
             final text = (value ?? '').trim();
             if (text.length < 3) return 'Enter your full legal name.';
@@ -241,12 +247,9 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
         TextFormField(
           controller: _contactCtrl,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            hintText: '0917 123 4567',
-          ),
+          decoration: const InputDecoration(hintText: '0917 123 4567'),
           validator: (value) {
-            final digits =
-                (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+            final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
             if (digits.length < 7) {
               return 'Enter a reachable mobile or landline number.';
             }
@@ -316,9 +319,7 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
         TextFormField(
           controller: _positionCtrl,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            hintText: 'Tourism Officer II',
-          ),
+          decoration: const InputDecoration(hintText: 'Tourism Officer II'),
           validator: (value) => (value ?? '').trim().length < 2
               ? 'Enter your official position.'
               : null,
@@ -335,7 +336,11 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
           'Attach your Official LGU ID, endorsement letter or authorization '
           'memo. JPG, PNG or WebP, up to 10 MB each, maximum $maxDocs files. '
           'PDF endorsements may be emailed to the Provincial Tourism Office.',
-          style: TextStyle(fontSize: 12.5, height: 1.45, color: Color(0xFF5F5F5F)),
+          style: TextStyle(
+            fontSize: 12.5,
+            height: 1.45,
+            color: Color(0xFF5F5F5F),
+          ),
         ),
         const SizedBox(height: 12),
         for (var i = 0; i < _docs.length; i++)
@@ -350,8 +355,11 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.description_outlined,
-                      size: 18, color: forest),
+                  const Icon(
+                    Icons.description_outlined,
+                    size: 18,
+                    color: forest,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -380,11 +388,12 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
               onPressed: _submitting ? null : _pickDocument,
               icon: const Icon(Icons.upload_file, size: 18),
               label: Text(
-                _docs.isEmpty ? 'Attach verification document' : 'Add another document',
+                _docs.isEmpty
+                    ? 'Attach verification document'
+                    : 'Add another document',
               ),
+              // Theme colours keep the outline and label legible in Dark Mode.
               style: OutlinedButton.styleFrom(
-                foregroundColor: forest,
-                side: const BorderSide(color: Color(0xFFCFE0CB)),
                 minimumSize: const Size.fromHeight(46),
                 shape: const StadiumBorder(),
               ),
@@ -410,7 +419,8 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
             final text = (value ?? '').trim();
             if (text.isEmpty) return null;
             final uri = Uri.tryParse(text);
-            if (uri == null || !uri.isAbsolute ||
+            if (uri == null ||
+                !uri.isAbsolute ||
                 (uri.scheme != 'http' && uri.scheme != 'https')) {
               return 'Enter a valid http(s) link or leave it blank.';
             }
@@ -574,18 +584,21 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
       final municipality =
           RizalMunicipalities.byId(_municipalityId ?? '')?.name ?? '';
 
-      await Supabase.instance.client.from('users').update({
-        'full_name': _nameCtrl.text.trim(),
-        'requested_role_tier': _tier,
-        'requested_municipality': municipality,
-        'department_office': _departmentCtrl.text.trim(),
-        'official_position': _positionCtrl.text.trim(),
-        'contact_number': _contactCtrl.text.trim(),
-        'request_reason': _reasonCtrl.text.trim(),
-        'verification_doc_urls': paths,
-        'approval_status': 'pending',
-        'requested_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', userId);
+      await Supabase.instance.client
+          .from('users')
+          .update({
+            'full_name': _nameCtrl.text.trim(),
+            'requested_role_tier': _tier,
+            'requested_municipality': municipality,
+            'department_office': _departmentCtrl.text.trim(),
+            'official_position': _positionCtrl.text.trim(),
+            'contact_number': _contactCtrl.text.trim(),
+            'request_reason': _reasonCtrl.text.trim(),
+            'verification_doc_urls': paths,
+            'approval_status': 'pending',
+            'requested_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', userId);
 
       if (!mounted) return;
       await _showSubmitted();
@@ -659,9 +672,7 @@ class _LguAccessRequestPageState extends ConsumerState<LguAccessRequestPage> {
           'I%20am%20submitting%20my%20LGU%20access%20request%20with%20'
           'attached%20verification%20documents.%0A%0A'
           'Tier%3A%20$_tier%0A'
-          'Municipality%3A%20${Uri.encodeComponent(
-            RizalMunicipalities.byId(_municipalityId ?? '')?.name ?? '',
-          )}%0A'
+          'Municipality%3A%20${Uri.encodeComponent(RizalMunicipalities.byId(_municipalityId ?? '')?.name ?? '')}%0A'
           'Office%3A%20${Uri.encodeComponent(_departmentCtrl.text.trim())}%0A'
           'Position%3A%20${Uri.encodeComponent(_positionCtrl.text.trim())}%0A'
           'Contact%20number%3A%20${Uri.encodeComponent(_contactCtrl.text.trim())}',

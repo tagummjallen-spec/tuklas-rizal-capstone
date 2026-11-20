@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/tuklas_colors.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -321,15 +322,17 @@ class EventDetailPage extends ConsumerWidget {
                                 ),
                               ),
                               style: OutlinedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: forest,
+                                // Theme-aware pill: white-ish in light mode,
+                                // deep slate in dark mode, with a readable label.
+                                backgroundColor: context.tuklasSurface,
+                                foregroundColor: context.tuklasForestInk,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                 ),
                                 side: BorderSide(
                                   color: isSaved
-                                      ? forest
-                                      : const Color(0xFFB9CDB6),
+                                      ? context.tuklasForestInk
+                                      : context.tuklasHairline,
                                   width: 1.4,
                                 ),
                                 shape: RoundedRectangleBorder(
@@ -382,10 +385,10 @@ class EventDetailPage extends ConsumerWidget {
                         const SizedBox(width: 3),
                         Text(
                           rating.toStringAsFixed(1),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
-                            color: forest,
+                            color: context.tuklasForestInk,
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -403,7 +406,6 @@ class EventDetailPage extends ConsumerWidget {
                         TextButton(
                           onPressed: () => _openReviews(context, ref, event),
                           style: TextButton.styleFrom(
-                            foregroundColor: forest,
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             minimumSize: const Size(0, 34),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -424,22 +426,22 @@ class EventDetailPage extends ConsumerWidget {
               const SizedBox(height: 16),
 
               // ---- Description ---------------------------------------------
-              const Text(
+              Text(
                 'EVENT DESCRIPTION',
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.9,
-                  color: forest,
+                  color: context.tuklasForestInk,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 _description(event, municipality, venue),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   height: 1.55,
-                  color: Color(0xFF2A2A2A),
+                  color: context.tuklasInk,
                 ),
               ),
               const SizedBox(height: 20),
@@ -453,13 +455,13 @@ class EventDetailPage extends ConsumerWidget {
               const Divider(height: 28),
 
               // ---- How to get there ----------------------------------------
-              const Text(
+              Text(
                 'HOW TO GET THERE',
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.9,
-                  color: forest,
+                  color: context.tuklasForestInk,
                 ),
               ),
               const SizedBox(height: 8),
@@ -488,27 +490,29 @@ class EventDetailPage extends ConsumerWidget {
                     horizontal: 16,
                     vertical: 12,
                   ),
-                  foregroundColor: forest,
-                  side: const BorderSide(color: Color(0xFFCFE0CB)),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.directions, size: 20, color: forest),
+                    Icon(
+                      Icons.directions,
+                      size: 20,
+                      color: context.tuklasForestInk,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
+                          Text(
                             'Directions',
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
-                              color: forest,
+                              color: context.tuklasForestInk,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -516,19 +520,19 @@ class EventDetailPage extends ConsumerWidget {
                             'Directions to $venue',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11.5,
                               height: 1.3,
-                              color: Color(0xFF6B6B6B),
+                              color: context.tuklasMuted,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Icons.open_in_new,
                       size: 15,
-                      color: Color(0xFF9A9A9A),
+                      color: context.tuklasMuted,
                     ),
                   ],
                 ),
@@ -566,7 +570,11 @@ class EventDetailPage extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.support_agent, color: forest, size: 26),
+                    Icon(
+                      Icons.support_agent,
+                      color: context.tuklasForestInk,
+                      size: 26,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -764,11 +772,7 @@ class EventDetailPage extends ConsumerWidget {
   }
 
   /// Pre-fills the AI Tour Guide with a grounded question about this event.
-  void _askAiGuide(
-    BuildContext context,
-    EventItem event,
-    String municipality,
-  ) {
+  void _askAiGuide(BuildContext context, EventItem event, String municipality) {
     final question =
         'Tell me about ${event.title} in $municipality, Rizal — '
         'the schedule, highlights, and how to get there.';
@@ -780,7 +784,8 @@ class EventDetailPage extends ConsumerWidget {
     WidgetRef ref,
     EventItem event,
     String contact,
-  ) async {    final signedIn = await requireSignIn(
+  ) async {
+    final signedIn = await requireSignIn(
       context,
       ref,
       action: 'message $contact',
@@ -1092,9 +1097,7 @@ class _HeartButtonState extends State<_HeartButton> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: liked
-                  ? const Color(0xFFE59A9A)
-                  : const Color(0xFFB9CDB6),
+              color: liked ? const Color(0xFFE59A9A) : const Color(0xFFB9CDB6),
               width: 1.2,
             ),
           ),
@@ -1108,9 +1111,7 @@ class _HeartButtonState extends State<_HeartButton> {
                 child: Icon(
                   liked ? Icons.favorite : Icons.favorite_border,
                   size: 18,
-                  color: liked
-                      ? Colors.redAccent
-                      : const Color(0xFF6B6B6B),
+                  color: liked ? Colors.redAccent : const Color(0xFF6B6B6B),
                 ),
               ),
               const SizedBox(width: 6),
@@ -1120,9 +1121,7 @@ class _HeartButtonState extends State<_HeartButton> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: liked
-                      ? Colors.redAccent
-                      : const Color(0xFF4F6B4D),
+                  color: liked ? Colors.redAccent : const Color(0xFF4F6B4D),
                 ),
               ),
             ],
@@ -1231,10 +1230,7 @@ class _ReviewsSection extends ConsumerWidget {
         if (all.length > preview.length)
           TextButton(
             onPressed: onOpenAll,
-            style: TextButton.styleFrom(
-              foregroundColor: EventDetailPage.forest,
-              padding: EdgeInsets.zero,
-            ),
+            style: TextButton.styleFrom(padding: EdgeInsets.zero),
             child: Text('Read all ${all.length} reviews'),
           ),
       ],
@@ -1508,10 +1504,10 @@ class _InlineReviewComposerState extends ConsumerState<_InlineReviewComposer> {
             children: [
               Text(
                 widget.isEdit ? 'Update your rating' : 'Rate this event',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: EventDetailPage.forest,
+                  color: context.tuklasForestInk,
                 ),
               ),
               const Spacer(),
@@ -1919,7 +1915,6 @@ class _ReviewsSheet extends ConsumerWidget {
                     label: const Text('Community Reviews'),
                     style: TextButton.styleFrom(
                       alignment: Alignment.centerLeft,
-                      foregroundColor: EventDetailPage.forest,
                       padding: EdgeInsets.zero,
                     ),
                   ),
@@ -2140,9 +2135,7 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
         decoration: BoxDecoration(
           color: context.tuklasSurfaceAlt,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(22),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2163,10 +2156,10 @@ class _WriteReviewSheetState extends ConsumerState<_WriteReviewSheet> {
               widget.existingReview != null
                   ? 'Edit Your Review'
                   : 'Write a review',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: EventDetailPage.forest,
+                color: context.tuklasForestInk,
               ),
             ),
             const SizedBox(height: 10),

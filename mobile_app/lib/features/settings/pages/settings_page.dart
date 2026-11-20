@@ -43,8 +43,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         children: [
           TuklasPageHeader(
             title: 'App Settings',
-            subtitle:
-                'Appearance, accessibility, notifications and app info',
+            subtitle: 'Appearance, accessibility, notifications and app info',
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               tooltip: 'Back',
@@ -54,10 +53,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             actions: [
               IconButton(
                 tooltip: 'Notifications',
-                icon: const Icon(
-                  Icons.notifications_none,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.notifications_none, color: Colors.white),
                 onPressed: () => context.push('/notifications'),
               ),
             ],
@@ -241,10 +237,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                       child: Text(
                         'Preview: Explore festivals, heritage sites and local food across Rizal.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: scheme.onSurface,
-                        ),
+                        style: TextStyle(fontSize: 13, color: scheme.onSurface),
                       ),
                     ),
                     const Divider(height: 22),
@@ -333,76 +326,79 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       onChanged: _locationBusy
                           ? null
                           : (enabled) async {
-                        if (_locationBusy) return;
-                        setState(() => _locationBusy = true);
-                        final geofence = ref.read(geofenceServiceProvider);
-                        try {
-                          if (!enabled) {
-                            await locationConsent.setEnabled(false);
-                            geofence.stopMonitoring();
-                            return;
-                          }
-                          final agreed =
-                              await showLocationPrivacyDialog(context);
-                          if (!agreed) return;
-                          await locationConsent.acceptNotice();
-                          final granted =
-                              await geofence.requestLocationPermission();
-                          if (!context.mounted) return;
-                          if (!granted) {
-                            final message =
-                                await geofence.availabilityMessage();
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  message ??
-                                      'Location permission is required for '
-                                          'nearby event alerts.',
-                                ),
-                                backgroundColor: _forest,
-                              ),
-                            );
-                            return;
-                          }
-                          await locationConsent.setEnabled(true);
-                          await geofence.startMonitoring();
-                          if (!context.mounted) return;
-                          final error = geofence.lastError;
-                          if (error != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(error),
-                                backgroundColor: _forest,
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Municipal Cultural Alerts are now on.',
-                              ),
-                              backgroundColor: _forest,
-                            ),
-                          );
-                        } catch (_) {
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Could not update location alerts. Please '
-                                'try again.',
-                              ),
-                              backgroundColor: _forest,
-                            ),
-                          );
-                        } finally {
-                          if (mounted) {
-                            setState(() => _locationBusy = false);
-                          }
-                        }
-                      },
+                              if (_locationBusy) return;
+                              setState(() => _locationBusy = true);
+                              final geofence = ref.read(
+                                geofenceServiceProvider,
+                              );
+                              try {
+                                if (!enabled) {
+                                  await locationConsent.setEnabled(false);
+                                  geofence.stopMonitoring();
+                                  return;
+                                }
+                                final agreed = await showLocationPrivacyDialog(
+                                  context,
+                                );
+                                if (!agreed) return;
+                                await locationConsent.acceptNotice();
+                                final granted = await geofence
+                                    .requestLocationPermission();
+                                if (!context.mounted) return;
+                                if (!granted) {
+                                  final message = await geofence
+                                      .availabilityMessage();
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        message ??
+                                            'Location permission is required for '
+                                                'nearby event alerts.',
+                                      ),
+                                      backgroundColor: _forest,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                await locationConsent.setEnabled(true);
+                                await geofence.startMonitoring();
+                                if (!context.mounted) return;
+                                final error = geofence.lastError;
+                                if (error != null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(error),
+                                      backgroundColor: _forest,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Municipal Cultural Alerts are now on.',
+                                    ),
+                                    backgroundColor: _forest,
+                                  ),
+                                );
+                              } catch (_) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not update location alerts. Please '
+                                      'try again.',
+                                    ),
+                                    backgroundColor: _forest,
+                                  ),
+                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _locationBusy = false);
+                                }
+                              }
+                            },
                     ),
                     const Divider(height: 1),
                     const _DemoTownEntryPicker(),
@@ -718,8 +714,6 @@ class _StepButton extends StatelessWidget {
         onPressed: enabled ? () => onTap() : null,
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.zero,
-          foregroundColor: const Color(0xFF033300),
-          side: const BorderSide(color: Color(0xFFCFE0CB)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -804,9 +798,8 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outline.withValues(alpha: 0.5),
+                      color: Theme.of(context).colorScheme.outline
+                          .withValues(alpha: 0.5),
                     ),
                   ),
                   child: DropdownButton<String>(
@@ -824,7 +817,9 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                         ),
                     ],
                     onChanged: (value) {
-                      if (value != null) setState(() => _selectedTownId = value);
+                      if (value != null) {
+                        setState(() => _selectedTownId = value);
+                      }
                     },
                   ),
                 ),

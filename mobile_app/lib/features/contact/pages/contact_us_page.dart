@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/tuklas_colors.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -138,8 +139,6 @@ class ContactUsPage extends ConsumerWidget {
                   icon: const Icon(Icons.forum_outlined, size: 18),
                   label: const Text('Open Coordinator Directory'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _forest,
-                    side: const BorderSide(color: Color(0xFFCFE0CB)),
                     minimumSize: const Size.fromHeight(46),
                     shape: const StadiumBorder(),
                   ),
@@ -204,8 +203,7 @@ class ContactUsPage extends ConsumerWidget {
                       Uri(
                         scheme: 'mailto',
                         path: AppConstants.tourismOfficeEmail,
-                        query:
-                            'subject=LGU%20Coordinator%20Access%20Request',
+                        query: 'subject=LGU%20Coordinator%20Access%20Request',
                       ),
                       fallback: 'No email app available on this device.',
                     ),
@@ -438,11 +436,7 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: children,
-    );
+    return Wrap(spacing: 8, runSpacing: 8, children: children);
   }
 }
 
@@ -469,14 +463,16 @@ class _ActionButton extends StatelessWidget {
       shape: const WidgetStatePropertyAll(StadiumBorder()),
     );
 
+    final scheme = Theme.of(context).colorScheme;
+
     if (filled) {
       return ElevatedButton.icon(
         onPressed: onTap,
         icon: Icon(icon, size: 17),
         label: Text(label),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF033300),
-          foregroundColor: Colors.white,
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
           elevation: 0,
         ).merge(style),
       );
@@ -486,8 +482,8 @@ class _ActionButton extends StatelessWidget {
       icon: Icon(icon, size: 17),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFF033300),
-        side: const BorderSide(color: Color(0xFFCFE0CB)),
+        foregroundColor: scheme.primary,
+        side: BorderSide(color: scheme.primary.withValues(alpha: 0.6)),
       ).merge(style),
     );
   }
@@ -506,11 +502,7 @@ class _Bullet extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 5, right: 8),
-            child: Icon(
-              Icons.circle,
-              size: 6,
-              color: Color(0xFFFFC800),
-            ),
+            child: Icon(Icons.circle, size: 6, color: Color(0xFFFFC800)),
           ),
           Expanded(
             child: Text(

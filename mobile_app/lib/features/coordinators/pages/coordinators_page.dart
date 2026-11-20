@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/tuklas_colors.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -138,94 +139,94 @@ class _CoordinatorsPageState extends ConsumerState<CoordinatorsPage> {
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-            children: [
-              _DirectoryHero(total: all.length),
-              const SizedBox(height: 14),
-              _DirectorySearchBar(
-                controller: _searchCtrl,
-                query: _query,
-                onChanged: (value) => setState(() => _query = value.trim()),
-                onClear: () {
-                  _searchCtrl.clear();
-                  setState(() => _query = '');
-                },
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
+              children: [
+                _DirectoryHero(total: all.length),
+                const SizedBox(height: 14),
+                _DirectorySearchBar(
+                  controller: _searchCtrl,
+                  query: _query,
+                  onChanged: (value) => setState(() => _query = value.trim()),
+                  onClear: () {
+                    _searchCtrl.clear();
+                    setState(() => _query = '');
+                  },
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _DistrictChip(
+                        label: 'All (${all.length})',
+                        selected: _district == _allDistricts,
+                        onTap: () => setState(() => _district = _allDistricts),
+                      ),
+                      _DistrictChip(
+                        label: 'Lakeshore (${districts[_lakeshore] ?? 0})',
+                        selected: _district == _lakeshore,
+                        onTap: () => setState(() => _district = _lakeshore),
+                      ),
+                      _DistrictChip(
+                        label:
+                            'Highlands / Sierra Madre (${districts[_highlands] ?? 0})',
+                        selected: _district == _highlands,
+                        onTap: () => setState(() => _district = _highlands),
+                      ),
+                      _DistrictChip(
+                        label: 'Metro East (${districts[_metroEast] ?? 0})',
+                        selected: _district == _metroEast,
+                        onTap: () => setState(() => _district = _metroEast),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (user != null) const _MyInquiriesCard(),
+                if (user != null) const _SubmitContentCard(),
+                if (user == null) const _GuestSignInCard(),
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    _DistrictChip(
-                      label: 'All (${all.length})',
-                      selected: _district == _allDistricts,
-                      onTap: () => setState(() => _district = _allDistricts),
+                    const Expanded(
+                      child: Text(
+                        'Municipal Tourism Offices',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: forest,
+                        ),
+                      ),
                     ),
-                    _DistrictChip(
-                      label: 'Lakeshore (${districts[_lakeshore] ?? 0})',
-                      selected: _district == _lakeshore,
-                      onTap: () => setState(() => _district = _lakeshore),
-                    ),
-                    _DistrictChip(
-                      label:
-                          'Highlands / Sierra Madre (${districts[_highlands] ?? 0})',
-                      selected: _district == _highlands,
-                      onTap: () => setState(() => _district = _highlands),
-                    ),
-                    _DistrictChip(
-                      label: 'Metro East (${districts[_metroEast] ?? 0})',
-                      selected: _district == _metroEast,
-                      onTap: () => setState(() => _district = _metroEast),
+                    _MiniBadge(
+                      label: '${filtered.length} of ${all.length}',
+                      background: const Color(0xFFE8F0E5),
+                      foreground: forest,
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              if (user != null) const _MyInquiriesCard(),
-              if (user != null) const _SubmitContentCard(),
-              if (user == null) const _GuestSignInCard(),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Municipal Tourism Offices',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: forest,
-                      ),
+                const SizedBox(height: 10),
+                if (filtered.isEmpty)
+                  _EmptyDirectory(
+                    onClear: () {
+                      _searchCtrl.clear();
+                      setState(() {
+                        _query = '';
+                        _district = _allDistricts;
+                      });
+                    },
+                  )
+                else
+                  for (final municipality in filtered)
+                    _MunicipalityOfficeCard(
+                      municipality: municipality,
+                      district: _districtFor(municipality.name),
+                      onSendInquiry: () => _sendInquiry(municipality),
+                      onCopyEmail: () => _copyEmail(municipality),
+                      onViewProfile: () => _viewTownProfile(municipality),
                     ),
-                  ),
-                  _MiniBadge(
-                    label: '${filtered.length} of ${all.length}',
-                    background: const Color(0xFFE8F0E5),
-                    foreground: forest,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              if (filtered.isEmpty)
-                _EmptyDirectory(
-                  onClear: () {
-                    _searchCtrl.clear();
-                    setState(() {
-                      _query = '';
-                      _district = _allDistricts;
-                    });
-                  },
-                )
-              else
-                for (final municipality in filtered)
-                  _MunicipalityOfficeCard(
-                    municipality: municipality,
-                    district: _districtFor(municipality.name),
-                    onSendInquiry: () => _sendInquiry(municipality),
-                    onCopyEmail: () => _copyEmail(municipality),
-                    onViewProfile: () => _viewTownProfile(municipality),
-                  ),
-            ],
-          );
+              ],
+            );
           },
         ),
       ),
@@ -1084,9 +1085,7 @@ class _TownProfileSheet extends StatelessWidget {
         return Container(
           decoration: BoxDecoration(
             color: context.tuklasSurface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(24),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: ListView(
             controller: scrollController,
@@ -1224,8 +1223,6 @@ class _TownProfileSheet extends StatelessWidget {
                   icon: const Icon(Icons.event_outlined, size: 18),
                   label: const Text('Browse events in this town'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF033300),
-                    side: const BorderSide(color: Color(0xFF033300)),
                     minimumSize: const Size.fromHeight(46),
                     shape: const StadiumBorder(),
                   ),

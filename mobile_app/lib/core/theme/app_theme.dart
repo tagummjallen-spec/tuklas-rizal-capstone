@@ -25,8 +25,10 @@ class AppTheme {
   static const Color darkTextPrimary = Color(0xFFE8EFEA);
   static const Color darkTextSecondary = Color(0xFFA7B7AD);
   static const Color darkOutline = Color(0xFF3A4A42);
-  static const Color darkEmerald = Color(0xFF5FD08A);
-  static const Color darkEmeraldInk = Color(0xFF06210F);
+  // Bright sage/mint accent: readable on near-black surfaces AND light enough
+  // to carry dark ink when it is used as a button fill.
+  static const Color darkEmerald = Color(0xFF86EFAC);
+  static const Color darkEmeraldInk = Color(0xFF062810);
 
   /// [highContrast] strengthens text and outline contrast for the Settings
   /// accessibility toggle (pure black text, darker borders, white surfaces).
@@ -100,12 +102,8 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -116,12 +114,8 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -131,14 +125,22 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: provincialGreen,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: borderColor),
@@ -181,26 +183,29 @@ class AppTheme {
   /// keep accessible contrast.
   static ThemeData darkTheme({bool highContrast = false}) {
     final bodyColor = highContrast ? Colors.white : darkTextPrimary;
-    final mutedColor = highContrast ? const Color(0xFFD7E2DB) : darkTextSecondary;
+    final mutedColor = highContrast
+        ? const Color(0xFFD7E2DB)
+        : darkTextSecondary;
     final borderColor = highContrast ? Colors.white : darkOutline;
     final cardColor = highContrast ? Colors.black : darkSurface;
+    final scheme = ColorScheme.dark(
+      primary: darkEmerald,
+      secondary: provincialGold,
+      surface: cardColor,
+      onPrimary: darkEmeraldInk,
+      onSecondary: provincialGreen,
+      onSurface: bodyColor,
+      onSurfaceVariant: mutedColor,
+      outline: borderColor,
+      error: const Color(0xFFFFB4AB),
+      onError: const Color(0xFF690005),
+    );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: highContrast ? Colors.black : darkScaffold,
-      colorScheme: ColorScheme.dark(
-        primary: darkEmerald,
-        secondary: provincialGold,
-        surface: cardColor,
-        onPrimary: darkEmeraldInk,
-        onSecondary: provincialGreen,
-        onSurface: bodyColor,
-        onSurfaceVariant: mutedColor,
-        outline: borderColor,
-        error: const Color(0xFFFFB4AB),
-        onError: const Color(0xFF690005),
-      ),
+      colorScheme: scheme,
       textTheme: GoogleFonts.poppinsTextTheme(
         TextTheme(
           displayLarge: TextStyle(
@@ -253,12 +258,8 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -269,29 +270,37 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
+      // Outlined buttons: bright mint label + a mint border at 60% so the
+      // outline itself clears the dark card surface instead of vanishing.
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: darkEmerald,
-          side: BorderSide(color: borderColor),
+          foregroundColor: scheme.primary,
+          side: BorderSide(color: scheme.primary.withValues(alpha: 0.6)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        ),
+      ),
+      // Text buttons follow the same bright accent: no dark-green labels on a
+      // dark surface.
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: scheme.primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: highContrast ? Colors.black : darkSurfaceAlt,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: borderColor),

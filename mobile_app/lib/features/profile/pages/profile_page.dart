@@ -224,9 +224,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                   : _travelStyle!,
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -269,9 +269,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               : 'No interests selected yet. Tap + Edit Interests.',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
                           ),
                         )
                       : Wrap(
@@ -343,9 +343,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       onPressed: () => context.push('/login'),
                       icon: const Icon(Icons.login, size: 18),
                       label: const Text('Sign in to save and sync'),
+                      // Colours come from the theme so the label and border
+                      // stay bright on the dark profile surface.
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: _forest,
-                        side: const BorderSide(color: _forest),
                         minimumSize: const Size.fromHeight(48),
                         shape: const StadiumBorder(),
                       ),
@@ -705,18 +705,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               fontSize: 12,
                               color: selectedMunicipality == m.id
                                   ? Colors.white
-                                  : Theme.of(
-                                      sheetContext,
-                                    ).colorScheme.onSurface,
+                                  : Theme.of(sheetContext)
+                                        .colorScheme
+                                        .onSurface,
                             ),
                             side: BorderSide(
                               color: selectedMunicipality == m.id
                                   ? _forest
-                                  : Theme.of(
-                                      sheetContext,
-                                    ).colorScheme.outline.withValues(
-                                      alpha: 0.5,
-                                    ),
+                                  : Theme.of(sheetContext).colorScheme.outline
+                                        .withValues(alpha: 0.5),
                             ),
                             onSelected: (_) => setSheetState(() {
                               selectedMunicipality =
@@ -741,9 +738,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               fontSize: 12,
                               color: selectedStyle == style
                                   ? _forest
-                                  : Theme.of(
-                                      sheetContext,
-                                    ).colorScheme.onSurface,
+                                  : Theme.of(sheetContext)
+                                        .colorScheme
+                                        .onSurface,
                               fontWeight: selectedStyle == style
                                   ? FontWeight.w700
                                   : FontWeight.w400,
@@ -751,11 +748,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             side: BorderSide(
                               color: selectedStyle == style
                                   ? _forest
-                                  : Theme.of(
-                                      sheetContext,
-                                    ).colorScheme.outline.withValues(
-                                      alpha: 0.5,
-                                    ),
+                                  : Theme.of(sheetContext).colorScheme.outline
+                                        .withValues(alpha: 0.5),
                             ),
                             onSelected: (_) => setSheetState(() {
                               selectedStyle = selectedStyle == style
@@ -784,16 +778,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             fontSize: 12,
                             color: isOn
                                 ? Colors.white
-                                : Theme.of(
-                                    sheetContext,
-                                  ).colorScheme.onSurface,
+                                : Theme.of(sheetContext).colorScheme.onSurface,
                           ),
                           side: BorderSide(
                             color: isOn
                                 ? _forest
-                                : Theme.of(
-                                    sheetContext,
-                                  ).colorScheme.outline.withValues(alpha: 0.5),
+                                : Theme.of(sheetContext).colorScheme.outline
+                                      .withValues(alpha: 0.5),
                           ),
                           onSelected: (_) => setSheetState(() {
                             if (isOn) {
