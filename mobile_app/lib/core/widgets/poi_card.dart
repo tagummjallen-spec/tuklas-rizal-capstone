@@ -18,6 +18,9 @@ class PoiCard extends StatelessWidget {
   /// Interest-based boost: shows the "Recommended for You" badge.
   final bool isRecommended;
 
+  /// Compact transport hint (e.g. "Commute guide") shown beside the category.
+  final String? commuteBadge;
+
   /// Explainable reason for a promotion / interest match.
   final String? promotionReason;
   final VoidCallback onTap;
@@ -33,6 +36,7 @@ class PoiCard extends StatelessWidget {
     this.municipalityKey,
     this.isSaved = false,
     this.isRecommended = false,
+    this.commuteBadge,
     this.promotionReason,
     required this.onTap,
     this.onToggleSave,
@@ -40,6 +44,13 @@ class PoiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pillBg = isDark ? const Color(0xFF24352C) : const Color(0xFFF7F6F2);
+    final pillFg = isDark
+        ? const Color(0xFF9FE7B5)
+        : const Color(0xFF033300);
+
     return PressScale(
       child: Card(
         clipBehavior: Clip.antiAlias,
@@ -115,20 +126,20 @@ class PoiCard extends StatelessWidget {
                       name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         height: 1.2,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF1B1B1B),
+                        color: scheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.location_city,
                           size: 13,
-                          color: Color(0xFF6B6B6B),
+                          color: scheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -136,34 +147,36 @@ class PoiCard extends StatelessWidget {
                             municipality,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
-                              color: Color(0xFF6B6B6B),
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF7F6F2),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        category,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF033300),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _Pill(
+                          label: category,
+                          background: pillBg,
+                          foreground: pillFg,
                         ),
-                      ),
+                        if (commuteBadge != null && commuteBadge!.isNotEmpty)
+                          _Pill(
+                            label: commuteBadge!,
+                            icon: Icons.directions_bus,
+                            background: isDark
+                                ? const Color(0xFF2A2411)
+                                : const Color(0xFFFFF4CC),
+                            foreground: isDark
+                                ? const Color(0xFFFFD65C)
+                                : const Color(0xFF7A5A00),
+                          ),
+                      ],
                     ),
                     if (promotionReason != null) ...[
                       const SizedBox(height: 8),
@@ -175,6 +188,52 @@ class PoiCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final Color background;
+  final Color foreground;
+
+  const _Pill({
+    required this.label,
+    this.icon,
+    required this.background,
+    required this.foreground,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 11, color: foreground),
+            const SizedBox(width: 3),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: foreground,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

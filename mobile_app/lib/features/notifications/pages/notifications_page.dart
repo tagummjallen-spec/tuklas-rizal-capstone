@@ -16,7 +16,6 @@ class NotificationsPage extends ConsumerWidget {
 
   static const Color forest = Color(0xFF033300);
   static const Color gold = Color(0xFFFFC800);
-  static const Color cream = Color(0xFFF7F6F2);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,7 +26,7 @@ class NotificationsPage extends ConsumerWidget {
     final unread = controller.unreadCount(notifications);
 
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           Container(
@@ -150,25 +149,29 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final (icon, tint) = switch (notification.kind) {
       AppNotificationKind.civicBroadcast => (
         Icons.campaign_outlined,
-        const Color(0xFFFFE9A3),
+        isDark ? const Color(0xFF3A3115) : const Color(0xFFFFE9A3),
       ),
       AppNotificationKind.newEvent => (
         Icons.auto_awesome_outlined,
-        const Color(0xFFDCE8DC),
+        isDark ? const Color(0xFF24352C) : const Color(0xFFDCE8DC),
       ),
       AppNotificationKind.upcomingEvent => (
         Icons.event_available_outlined,
-        const Color(0xFFE7F0E4),
+        isDark ? const Color(0xFF24352C) : const Color(0xFFE7F0E4),
       ),
     };
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: isRead ? Colors.white : const Color(0xFFFFFDF4),
+        color: isRead
+            ? Theme.of(context).cardColor
+            : (isDark ? const Color(0xFF232C1D) : const Color(0xFFFFFDF4)),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -179,7 +182,7 @@ class _NotificationTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isRead
-                    ? const Color(0xFFECECE7)
+                    ? scheme.outline.withValues(alpha: 0.4)
                     : NotificationsPage.gold.withValues(alpha: 0.7),
               ),
             ),
@@ -193,7 +196,13 @@ class _NotificationTile extends StatelessWidget {
                     color: tint,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, size: 21, color: NotificationsPage.forest),
+                  child: Icon(
+                    icon,
+                    size: 21,
+                    color: isDark
+                        ? const Color(0xFFFFC800)
+                        : NotificationsPage.forest,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -213,7 +222,7 @@ class _NotificationTile extends StatelessWidget {
                                 fontWeight: isRead
                                     ? FontWeight.w600
                                     : FontWeight.w800,
-                                color: const Color(0xFF1B1B1B),
+                                color: scheme.onSurface,
                               ),
                             ),
                           ),
@@ -234,19 +243,19 @@ class _NotificationTile extends StatelessWidget {
                         notification.body,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           height: 1.35,
-                          color: Color(0xFF6B6B6B),
+                          color: scheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         _relativeTime(notification.createdAt),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF8A8A8A),
+                          color: scheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -273,6 +282,8 @@ class _NotificationTile extends StatelessWidget {
 class _EmptyInbox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -282,34 +293,36 @@ class _EmptyInbox extends StatelessWidget {
             Container(
               width: 76,
               height: 76,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE7F0E4),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF24352C)
+                    : const Color(0xFFE7F0E4),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.notifications_none,
                 size: 36,
-                color: NotificationsPage.forest,
+                color: scheme.primary,
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'No announcements yet',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: NotificationsPage.forest,
+                color: scheme.onSurface,
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Newly approved events and Provincial Tourism advisories will '
               'appear here as soon as the LGU publishes them.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12.5,
                 height: 1.45,
-                color: Color(0xFF6B6B6B),
+                color: scheme.onSurfaceVariant,
               ),
             ),
           ],

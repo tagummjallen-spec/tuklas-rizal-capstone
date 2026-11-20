@@ -16,19 +16,23 @@ class MunicipalityChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return FilterChip(
       label: Text(municipality.name),
       selected: isSelected,
       onSelected: (_) => onSelected(),
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF1A2420) : Colors.white,
       selectedColor: const Color(0xFFFFC800),
       checkmarkColor: const Color(0xFF033300),
       labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFF033300) : const Color(0xFF6B6B6B),
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+        color: isSelected ? const Color(0xFF033300) : scheme.onSurface,
+        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
       ),
       side: BorderSide(
-        color: isSelected ? const Color(0xFF033300) : const Color(0xFFE5E5E5),
+        color: isSelected
+            ? const Color(0xFFFFC800)
+            : scheme.outline.withValues(alpha: 0.6),
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -55,19 +59,21 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return FilterChip(
       label: Text(name),
       selected: isSelected,
       onSelected: (_) => onSelected(),
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF1A2420) : Colors.white,
       selectedColor: color,
       checkmarkColor: Colors.white,
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : const Color(0xFF6B6B6B),
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+        color: isSelected ? Colors.white : scheme.onSurface,
+        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
       ),
       side: BorderSide(
-        color: isSelected ? color : const Color(0xFFE5E5E5),
+        color: isSelected ? color : scheme.outline.withValues(alpha: 0.6),
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

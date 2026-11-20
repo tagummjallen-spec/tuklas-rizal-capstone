@@ -200,10 +200,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                 selectedMunicipality == null
                     ? 'Discover Rizal'
                     : 'Discover ${selectedMunicipality.name}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF033300),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 4),
@@ -211,7 +211,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                 selectedMunicipality == null
                     ? 'All 14 municipalities of the Province of Rizal'
                     : '${selectedMunicipality.description}',
-                style: const TextStyle(fontSize: 14, color: Color(0xFF6B6B6B)),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -234,6 +237,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                       itemBuilder: (_, i) {
                         final b = barangays[i];
                         final selected = _selectedBarangayName == b;
+                        final scheme = Theme.of(context).colorScheme;
+                        final isDark =
+                            Theme.of(context).brightness == Brightness.dark;
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
@@ -246,19 +252,21 @@ class _HomePageState extends ConsumerState<HomePage> {
                               );
                             },
                             selectedColor: const Color(0xFFFFC800),
-                            backgroundColor: Colors.white,
+                            backgroundColor: isDark
+                                ? const Color(0xFF1A2420)
+                                : Colors.white,
                             labelStyle: TextStyle(
                               color: selected
                                   ? const Color(0xFF033300)
-                                  : const Color(0xFF6B6B6B),
+                                  : scheme.onSurface,
                               fontWeight: selected
-                                  ? FontWeight.w600
+                                  ? FontWeight.w700
                                   : FontWeight.w400,
                             ),
                             side: BorderSide(
                               color: selected
-                                  ? const Color(0xFF033300)
-                                  : const Color(0xFFE5E5E5),
+                                  ? const Color(0xFFFFC800)
+                                  : scheme.outline.withValues(alpha: 0.6),
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
@@ -585,8 +593,6 @@ class _HomePageState extends ConsumerState<HomePage> {
 // Branded, interactive Home header
 // ---------------------------------------------------------------------------
 class _HomeHeader extends StatelessWidget {
-  static const Color _forest = Color(0xFF033300);
-
   final Municipality? selectedMunicipality;
   final VoidCallback onPickMunicipality;
   final VoidCallback onSearch;
@@ -637,7 +643,7 @@ class _HomeHeader extends StatelessWidget {
                     ),
                     padding: EdgeInsets.zero,
                     onSelected: onMenuSelected,
-                    itemBuilder: (_) => const [
+                    itemBuilder: (_) => [
                       PopupMenuItem(
                         value: '/assistant',
                         child: ListTile(
@@ -645,9 +651,9 @@ class _HomeHeader extends StatelessWidget {
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(
                             Icons.chat_bubble_outline,
-                            color: _forest,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
-                          title: Text('AI Assistant'),
+                          title: const Text('AI Assistant'),
                         ),
                       ),
                       PopupMenuItem(
@@ -655,8 +661,11 @@ class _HomeHeader extends StatelessWidget {
                         child: ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.business, color: _forest),
-                          title: Text('Tourism Coordinators'),
+                          leading: Icon(
+                            Icons.business,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          title: const Text('Tourism Coordinators'),
                         ),
                       ),
                       PopupMenuItem(
@@ -666,9 +675,9 @@ class _HomeHeader extends StatelessWidget {
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(
                             Icons.settings_outlined,
-                            color: _forest,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
-                          title: Text('App Settings'),
+                          title: const Text('App Settings'),
                         ),
                       ),
                     ],
@@ -727,7 +736,7 @@ class _BrandMark extends StatelessWidget {
                 ),
               ),
               Text(
-                'Rizal Event Hub',
+                'Province of Rizal',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -852,13 +861,18 @@ class _QuickSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(18),
+        border: isDark
+            ? Border.all(color: scheme.outline.withValues(alpha: 0.45))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.06),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -879,9 +893,9 @@ class _QuickSearchBar extends StatelessWidget {
               focusedBorder: InputBorder.none,
               filled: false,
               isDense: true,
-              prefixIcon: const Icon(
+              prefixIcon: Icon(
                 Icons.search,
-                color: Color(0xFF033300),
+                color: scheme.primary,
                 size: 21,
               ),
               suffixIcon: query.isEmpty
@@ -907,20 +921,22 @@ class _QuickSearchBar extends StatelessWidget {
                     selected: selectedCategoryId == null,
                     onSelected: (_) => onCategorySelected(null),
                     selectedColor: const Color(0xFFFFC800),
-                    backgroundColor: const Color(0xFFF7F6F2),
+                    backgroundColor: isDark
+                        ? const Color(0xFF24352C)
+                        : const Color(0xFFF7F6F2),
                     labelStyle: TextStyle(
                       fontSize: 12,
                       color: selectedCategoryId == null
                           ? const Color(0xFF033300)
-                          : const Color(0xFF6B6B6B),
+                          : scheme.onSurface,
                       fontWeight: selectedCategoryId == null
                           ? FontWeight.w700
                           : FontWeight.w500,
                     ),
                     side: BorderSide(
                       color: selectedCategoryId == null
-                          ? const Color(0xFF033300)
-                          : const Color(0xFFE5E5E5),
+                          ? const Color(0xFFFFC800)
+                          : scheme.outline.withValues(alpha: 0.6),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -959,18 +975,20 @@ class _ActiveTownFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F0E5),
+        color: isDark ? const Color(0xFF24352C) : const Color(0xFFE8F0E5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF033300).withValues(alpha: 0.2),
+          color: scheme.primary.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.pin_drop, color: Color(0xFF033300), size: 18),
+          Icon(Icons.pin_drop, color: scheme.primary, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -978,10 +996,10 @@ class _ActiveTownFilter extends StatelessWidget {
               '${municipality != null ? ' · ${municipality!.officeName}' : ''}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF033300),
+                color: isDark ? const Color(0xFF9FE7B5) : const Color(0xFF033300),
               ),
             ),
           ),
@@ -1020,9 +1038,9 @@ class _MunicipalityPickerSheet extends StatelessWidget {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
@@ -1031,7 +1049,9 @@ class _MunicipalityPickerSheet extends StatelessWidget {
                 width: 42,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD9D9D9),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1053,7 +1073,7 @@ class _MunicipalityPickerSheet extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1062,15 +1082,17 @@ class _MunicipalityPickerSheet extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF033300),
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'Narrow promoted and featured events to one town.',
                             style: TextStyle(
                               fontSize: 11.5,
-                              color: Color(0xFF6B6B6B),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -1149,10 +1171,14 @@ class _MunicipalityOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: selected ? const Color(0xFFE8F0E5) : Colors.transparent,
+        color: selected
+            ? (isDark ? const Color(0xFF24352C) : const Color(0xFFE8F0E5))
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -1167,8 +1193,10 @@ class _MunicipalityOption extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: selected
-                        ? const Color(0xFF033300)
-                        : const Color(0xFFF1F3EE),
+                        ? (isDark ? scheme.primary : const Color(0xFF033300))
+                        : (isDark
+                              ? const Color(0xFF24352C)
+                              : const Color(0xFFF1F3EE)),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -1176,7 +1204,11 @@ class _MunicipalityOption extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
-                      color: selected ? Colors.white : const Color(0xFF033300),
+                      color: selected
+                          ? (isDark
+                                ? const Color(0xFF06210F)
+                                : Colors.white)
+                          : scheme.primary,
                     ),
                   ),
                 ),
@@ -1187,10 +1219,10 @@ class _MunicipalityOption extends StatelessWidget {
                     children: [
                       Text(
                         label,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1B1B1B),
+                          color: scheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 1),
@@ -1198,20 +1230,15 @@ class _MunicipalityOption extends StatelessWidget {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF6B6B6B),
+                          color: scheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (selected)
-                  const Icon(
-                    Icons.check_circle,
-                    color: Color(0xFF033300),
-                    size: 20,
-                  ),
+                if (selected) Icon(Icons.check_circle, color: scheme.primary, size: 20),
               ],
             ),
           ),
@@ -1377,6 +1404,7 @@ class _EmptyRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1384,17 +1412,17 @@ class _EmptyRail extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
           if (onClear != null)
             TextButton(
               onPressed: onClear,
-              child: const Text(
+              child: Text(
                 'Clear filters',
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF033300),
+                  color: scheme.primary,
                 ),
               ),
             ),

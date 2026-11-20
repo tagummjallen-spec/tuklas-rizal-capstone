@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_constants.dart';
 import 'core/providers/app_providers.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_mode_controller.dart';
 import 'core/router/app_router.dart';
 import 'features/onboarding/onboarding_provider.dart';
 import 'features/geofence/geofence_alert_host.dart';
@@ -36,6 +37,10 @@ void main() async {
   // never requested implicitly on startup.
   await locationConsentController.load();
 
+  // Resolve the persisted Light/Dark choice before the first frame so the app
+  // never flashes the wrong theme on launch. Defaults to Light.
+  await themeModeController.load();
+
   runApp(const ProviderScope(child: TuklasRizalApp()));
 }
 
@@ -49,6 +54,7 @@ class TuklasRizalApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     // Google OAuth (web origin redirect and the mobile deep link) lands with a
     // live session but no explicit callback navigation. Send first-time users
@@ -81,6 +87,8 @@ class TuklasRizalApp extends ConsumerWidget {
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme(highContrast: settings.highContrast),
+      darkTheme: AppTheme.darkTheme(highContrast: settings.highContrast),
+      themeMode: themeMode.themeMode,
       routerConfig: appRouter,
       builder: (context, child) {
         final media = MediaQuery.of(context);

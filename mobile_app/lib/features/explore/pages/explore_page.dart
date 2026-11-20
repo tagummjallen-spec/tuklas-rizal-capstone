@@ -13,6 +13,7 @@ import '../../../core/widgets/ai_guide_button.dart';
 import '../../../core/widgets/app_motion.dart';
 import '../../../core/widgets/poi_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/tuklas_page_header.dart';
 import '../../../models/poi_logistics.dart';
 import '../../../services/lookup_service.dart';
 
@@ -56,22 +57,20 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           )
         : RecommendationInterests.empty;
 
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Rizal Event Hub — Province of Rizal',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF033300),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: const [AiGuideButton()],
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      resizeToAvoidBottomInset: false,
       body: Column(
         children: [
+          const TuklasPageHeader(
+            title: 'Explore Rizal',
+            subtitle: 'Destinations, heritage sites and local flavors',
+            actions: [AiGuideButton()],
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (value) => setState(() => _query = value),
@@ -171,8 +170,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
             child: StreamBuilder<List<PoiLogistics>>(
               stream: discovery.pois,
               builder: (context, snap) {
+                final all = snap.data ?? const <PoiLogistics>[];
                 final pois = _interestFirst(
-                  _filter(snap.data ?? [], labels),
+                  _filter(all, labels),
                   (poi) => recommended.matches(
                     poi.categoryId,
                     labels.category(poi.categoryId),
@@ -192,18 +192,24 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Icon(
+                          Icons.travel_explore,
+                          size: 40,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
                           'No places match your search.',
-                          style: TextStyle(color: Color(0xFF6B6B6B)),
+                          style: TextStyle(color: scheme.onSurfaceVariant),
                         ),
                         if (filtered)
                           TextButton(
                             onPressed: _clearFilters,
-                            child: const Text(
+                            child: Text(
                               'Clear filters',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF033300),
+                                color: scheme.primary,
                               ),
                             ),
                           ),
@@ -211,26 +217,87 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                     ),
                   );
                 }
+
+                // A single, unmissable highlight at the top of the unfiltered
+                // feed: the first promoted POI, otherwise the first result.
+                final showFeatured =
+                    _query.isEmpty &&
+                    _municipalityId == null &&
+                    _barangay == null &&
+                    _categoryId == null &&
+                    !_promotedOnly &&
+                    all.isNotEmpty;
+                final featured = showFeatured ? _pickFeatured(all) : null;
+                final leadingItems = featured == null ? 1 : 2;
+
                 return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: pois.length,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                  itemCount: leadingItems + pois.length,
                   itemBuilder: (_, i) {
-                    final p = pois[i];
+                    if (featured != null && i == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _FeaturedPoiBanner(
+                          poi: featured,
+                          municipality: labels.municipality(
+                            featured.municipalityId,
+                          ),
+                          category:
+                              featured.poiType ??
+                              labels.category(featured.categoryId),
+                          onTap: () => context.push('/poi/${featured.id}'),
+                        ),
+                      );
+                    }
+                    if (i == leadingItems - 1) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 2, 0, 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Discover Rizal',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: scheme.primary,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${pois.length} place${pois.length == 1 ? '' : 's'}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    final index = i - leadingItems;
+                    final p = pois[index];
                     return StaggeredFadeIn(
                       key: ValueKey('poi-${p.id}'),
-                      index: i,
+                      index: index,
                       child: Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.only(bottom: 14),
                         child: PoiCard(
                           name: p.name,
                           municipality: labels.municipality(p.municipalityId),
-                          category: p.poiType ?? labels.category(p.categoryId),
+                          category:
+                              p.poiType ?? labels.category(p.categoryId),
                           categoryKey:
                               p.poiType ?? labels.category(p.categoryId),
                           municipalityKey: labels.municipality(
                             p.municipalityId,
                           ),
                           imageUrl: p.imageUrl,
+                          commuteBadge:
+                              (p.howToGetThere?.trim().isNotEmpty ?? false)
+                              ? 'Commute guide'
+                              : null,
                           isRecommended: recommended.matches(
                             p.categoryId,
                             labels.category(p.categoryId),
@@ -256,6 +323,14 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
         ],
       ),
     );
+  }
+
+  /// The first promoted POI, falling back to the first available result.
+  PoiLogistics _pickFeatured(List<PoiLogistics> all) {
+    for (final poi in all) {
+      if (poi.isPromoted) return poi;
+    }
+    return all.first;
   }
 
   void _clearFilters() {
@@ -365,6 +440,8 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
@@ -372,16 +449,220 @@ class _Pill extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onTap(),
         selectedColor: const Color(0xFFFFC800),
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF1A2420) : Colors.white,
         labelStyle: TextStyle(
           fontSize: 12,
-          color: selected ? const Color(0xFF033300) : const Color(0xFF6B6B6B),
-          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          color: selected ? const Color(0xFF033300) : scheme.onSurface,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
         ),
         side: BorderSide(
-          color: selected ? const Color(0xFF033300) : const Color(0xFFE5E5E5),
+          color: selected
+              ? const Color(0xFFFFC800)
+              : scheme.outline.withValues(alpha: 0.6),
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
+  }
+}
+
+/// Large highlight card at the top of Explore: full-bleed Rizal photography,
+/// a dark gradient scrim and the promoted destination's key facts.
+class _FeaturedPoiBanner extends StatelessWidget {
+  final PoiLogistics poi;
+  final String municipality;
+  final String category;
+  final VoidCallback onTap;
+
+  const _FeaturedPoiBanner({
+    required this.poi,
+    required this.municipality,
+    required this.category,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PressScale(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: 196,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              TourismImage(
+                imageUrl: poi.imageUrl,
+                category: poi.poiType ?? category,
+                municipality: municipality,
+              ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x14000000),
+                      Color(0x66000000),
+                      Color(0xE6001200),
+                    ],
+                    stops: [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFC800),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        size: 12,
+                        color: Color(0xFF033300),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'FEATURED THIS WEEK',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: Color(0xFF033300),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      poi.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        height: 1.15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.place,
+                          size: 13,
+                          color: Color(0xFFFFC800),
+                        ),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            municipality,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            category,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text(
+                          'View details',
+                          style: TextStyle(
+                            color: Color(0xFFFFC800),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.arrow_forward,
+                          size: 14,
+                          color: Color(0xFFFFC800),
+                        ),
+                        const Spacer(),
+                        if (poi.howToGetThere?.trim().isNotEmpty ?? false)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.directions_bus,
+                                  size: 11,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Commute guide',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Positioned.fill(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(onTap: onTap),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -452,19 +733,19 @@ class PoiDetailPage extends ConsumerWidget {
               const SizedBox(height: 16),
               Text(
                 poi.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF033300),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 8),
               if (poi.address != null)
                 Text(
                   poi.address!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: Color(0xFF6B6B6B),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               if (poi.operatingHours != null || poi.entranceFee != null) ...[
@@ -474,16 +755,20 @@ class PoiDetailPage extends ConsumerWidget {
                     if (poi.operatingHours != null) poi.operatingHours!,
                     if (poi.entranceFee != null) 'Fee: ${poi.entranceFee}',
                   ].join(' · '),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: Color(0xFF6B6B6B),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
               const SizedBox(height: 16),
               Text(
                 poi.description ?? '',
-                style: const TextStyle(fontSize: 16, color: Color(0xFF1B1B1B)),
+                style: TextStyle(
+                  fontSize: 16,
+                  height: 1.5,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 24),
               const SectionHeader(
@@ -494,9 +779,10 @@ class PoiDetailPage extends ConsumerWidget {
               if (poi.howToGetThere != null && poi.howToGetThere!.isNotEmpty)
                 Text(
                   poi.howToGetThere!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    color: Color(0xFF1B1B1B),
+                    height: 1.5,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               const SizedBox(height: 12),
@@ -507,8 +793,10 @@ class PoiDetailPage extends ConsumerWidget {
                   icon: const Icon(Icons.map_outlined),
                   label: const Text('Open in Google Maps'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF033300),
-                    side: const BorderSide(color: Color(0xFF033300)),
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   onPressed: () => _openDirections(context, poi),
                 ),
@@ -520,7 +808,10 @@ class PoiDetailPage extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               ListTile(
-                leading: const Icon(Icons.business, color: Color(0xFF033300)),
+                leading: Icon(
+                  Icons.business,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 title: const Text(
                   'Send an inquiry',
                   style: TextStyle(fontWeight: FontWeight.w600),

@@ -6,31 +6,25 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/municipalities.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/logout_confirmation.dart';
+import '../../../core/widgets/tuklas_page_header.dart';
 import '../location_consent.dart';
 
-/// Rizal Events Hub — App Settings.
+/// TuklasRizal — App Settings.
 ///
-/// Accessibility (text size, high contrast) is persisted through
-/// [AppSettingsController] and applied app-wide in `main.dart`. Notification,
-/// recommendation, account and support actions are all wired.
+/// Appearance (Light / Dark), accessibility (text size, high contrast),
+/// notifications, location privacy and account actions are all wired and
+/// persisted on the device.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   static const Color _forest = Color(0xFF033300);
-  static const Color _forestDeep = Color(0xFF022400);
-  static const Color _gold = Color(0xFFFFC800);
-  static const Color _cream = Color(0xFFF7F6F2);
 
   @override
   ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  // Referencing the page's palette keeps every existing `const` color use valid.
   static const Color _forest = SettingsPage._forest;
-  static const Color _forestDeep = SettingsPage._forestDeep;
-  static const Color _gold = SettingsPage._gold;
-  static const Color _cream = SettingsPage._cream;
 
   bool _locationBusy = false;
   bool _replayBusy = false;
@@ -40,103 +34,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final settings = ref.watch(appSettingsProvider);
     final user = ref.watch(authStateProvider).valueOrNull;
     final locationConsent = ref.watch(locationConsentProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: _cream,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          // Green header banner ------------------------------------------------
-          Container(
-            color: _forest,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: const BoxDecoration(
-                        color: _gold,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.location_on,
-                        color: _forest,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Rizal Event Hub',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Province of Rizal · Community Calendar',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Notifications',
-                      icon: const Icon(
-                        Icons.notifications_none,
-                        color: Colors.white,
-                      ),
-                      onPressed: () => context.push('/notifications'),
-                    ),
-                  ],
+          TuklasPageHeader(
+            title: 'App Settings',
+            subtitle:
+                'Appearance, accessibility, notifications and app info',
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              tooltip: 'Back',
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/'),
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Notifications',
+                icon: const Icon(
+                  Icons.notifications_none,
+                  color: Colors.white,
                 ),
+                onPressed: () => context.push('/notifications'),
               ),
-            ),
-          ),
-          // Dark green sub-banner ----------------------------------------------
-          Container(
-            width: double.infinity,
-            color: _forestDeep,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: const Row(
-              children: [
-                Icon(Icons.tune, color: _gold, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'App Settings',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Accessibility, notifications, and app info',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
           Expanded(
             child: ListView(
@@ -168,9 +92,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                   user.email,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: Color(0xFF6B6B6B),
+                                    color: scheme.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -190,16 +114,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           onPressed: () => confirmAndSignOut(context, ref),
                           icon: const Icon(Icons.logout, size: 18),
                           label: const Text('Log Out'),
-                          style: _pillStyle(),
+                          style: _pillStyle(context),
                         ),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.person_outline,
                             size: 16,
-                            color: Color(0xFF6B6B6B),
+                            color: scheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 6),
                           TextButton(
@@ -212,10 +136,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       const Text(
                         'You are browsing as a guest. Sign in to sync your '
                         'interests and saved events.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF6B6B6B),
-                        ),
+                        style: TextStyle(fontSize: 13),
                       ),
                       const SizedBox(height: 14),
                       SizedBox(
@@ -224,16 +145,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           onPressed: () => context.push('/login'),
                           icon: const Icon(Icons.login, size: 18),
                           label: const Text('Sign In / Create Account'),
-                          style: _pillStyle(),
+                          style: _pillStyle(context),
                         ),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.person_outline,
                             size: 16,
-                            color: Color(0xFF6B6B6B),
+                            color: scheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 6),
                           TextButton(
@@ -246,10 +167,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ],
                 ),
 
-                // ACCESSIBILITY -------------------------------------------------
+                // APPEARANCE / ACCESSIBILITY ------------------------------------
                 _SettingsCard(
-                  title: 'ACCESSIBILITY',
+                  title: 'APPEARANCE / ACCESSIBILITY',
                   children: [
+                    const Text(
+                      'Appearance Theme',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Choose Light or Dark. Light is the default.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const _ThemeSelector(),
+                    const Divider(height: 22),
                     Row(
                       children: [
                         const Expanded(
@@ -271,10 +210,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           child: Text(
                             '${settings.textScalePercent}%',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: _forest,
+                              color: scheme.primary,
                             ),
                           ),
                         ),
@@ -290,19 +229,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: _cream,
+                        color: isDark
+                            ? scheme.surfaceContainerHighest.withValues(
+                                alpha: 0.45,
+                              )
+                            : const Color(0xFFF7F6F2),
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: scheme.outline.withValues(alpha: 0.35),
+                        ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Preview: Explore festivals, heritage sites and local food across Rizal.',
-                        style: TextStyle(fontSize: 13),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: scheme.onSurface,
+                        ),
                       ),
                     ),
                     const Divider(height: 22),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: settings.highContrast,
-                      activeThumbColor: _forest,
+                      activeThumbColor: scheme.primary,
                       title: const Text(
                         'High Contrast',
                         style: TextStyle(
@@ -326,7 +275,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: settings.eventReminders,
-                      activeThumbColor: _forest,
+                      activeThumbColor: scheme.primary,
                       title: const Text(
                         'Event Reminders',
                         style: TextStyle(
@@ -344,7 +293,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: settings.newEventsInMyArea,
-                      activeThumbColor: _forest,
+                      activeThumbColor: scheme.primary,
                       title: const Text(
                         'New Events in My Area',
                         style: TextStyle(
@@ -368,7 +317,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: locationConsent.alertsEnabled,
-                      activeThumbColor: _forest,
+                      activeThumbColor: scheme.primary,
                       title: const Text(
                         'Municipal Cultural Alerts',
                         style: TextStyle(
@@ -467,7 +416,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: settings.recommendationsEnabled,
-                      activeThumbColor: _forest,
+                      activeThumbColor: scheme.primary,
                       title: const Text(
                         AppConstants.promoteTownsAndEventsTitle,
                         style: TextStyle(
@@ -490,7 +439,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   children: [
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.support_agent, color: _forest),
+                      leading: Icon(Icons.support_agent, color: scheme.primary),
                       title: const Text(
                         'Contact Us',
                         style: TextStyle(
@@ -511,7 +460,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const Divider(height: 1),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.replay, color: _forest),
+                      leading: Icon(Icons.replay, color: scheme.primary),
                       title: const Text(
                         'Replay Welcome Guide',
                         style: TextStyle(
@@ -562,9 +511,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const Divider(height: 1),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.info_outline, color: _forest),
+                      leading: Icon(Icons.info_outline, color: scheme.primary),
                       title: const Text(
-                        'About Rizal Events Hub',
+                        'About TuklasRizal',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -581,10 +530,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                const Center(
+                Center(
                   child: Text(
-                    'Rizal Events Hub · Prototype v1.0',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF8A8A8A)),
+                    'TuklasRizal · Prototype v1.0',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -596,10 +548,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  static ButtonStyle _pillStyle() {
+  static ButtonStyle _pillStyle(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ElevatedButton.styleFrom(
-      backgroundColor: _forest,
-      foregroundColor: Colors.white,
+      backgroundColor: isDark ? scheme.primary : _forest,
+      foregroundColor: isDark ? const Color(0xFF06210F) : Colors.white,
       elevation: 0,
       minimumSize: const Size.fromHeight(48),
       shape: const StadiumBorder(),
@@ -614,15 +568,20 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: scheme.outline.withValues(alpha: 0.45))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -633,15 +592,107 @@ class _SettingsCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
-              color: Color(0xFF033300),
+              color: scheme.primary,
             ),
           ),
           const SizedBox(height: 10),
           ...children,
+        ],
+      ),
+    );
+  }
+}
+
+/// Light / Dark segmented selector used by the Appearance card.
+///
+/// Calls `themeModeProvider`, so tapping an option repaints the whole app
+/// immediately and persists the choice for the next launch.
+class _ThemeSelector extends ConsumerWidget {
+  const _ThemeSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.watch(themeModeProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = controller.themeMode == ThemeMode.dark;
+
+    Widget option({
+      required IconData icon,
+      required String label,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      final selectedBg = isDark ? scheme.primary : const Color(0xFF033300);
+      final selectedFg = isDark ? const Color(0xFF06210F) : Colors.white;
+      return Expanded(
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: '$label theme',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: selected ? selectedBg : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: selected ? selectedFg : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? selectedFg : scheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF24352C) : const Color(0xFFF1F3EE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: scheme.outline.withValues(alpha: isDark ? 0.6 : 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          option(
+            icon: Icons.light_mode_outlined,
+            label: 'Light',
+            selected: !isDark,
+            onTap: () => controller.setThemeMode(ThemeMode.light),
+          ),
+          const SizedBox(width: 4),
+          option(
+            icon: Icons.dark_mode_outlined,
+            label: 'Dark',
+            selected: isDark,
+            onTap: () => controller.setThemeMode(ThemeMode.dark),
+          ),
         ],
       ),
     );
@@ -735,10 +786,13 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Pick any of the 14 towns to trigger the cultural welcome banner '
             'indoors.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF6B6B6B)),
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -747,9 +801,13 @@ class _DemoTownEntryPickerState extends ConsumerState<_DemoTownEntryPicker> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7F6F2),
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFCFE0CB)),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: DropdownButton<String>(
                     value: _selectedTownId,

@@ -14,6 +14,7 @@ import '../../models/user_profile.dart';
 import '../../models/coordinator_inquiry.dart';
 import '../../models/municipality.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/theme_mode_controller.dart';
 import '../../features/onboarding/onboarding_provider.dart';
 import '../../features/settings/settings_provider.dart';
 
@@ -84,6 +85,11 @@ final appSettingsProvider = ChangeNotifierProvider<AppSettingsController>((
   final controller = AppSettingsController();
   controller.load();
   return controller;
+});
+
+/// Light / Dark appearance, persisted on device and defaulted to Light.
+final themeModeProvider = ChangeNotifierProvider<ThemeModeController>((ref) {
+  return themeModeController;
 });
 
 /// Auth state stream used by the app-level onboarding bootstrap.

@@ -81,7 +81,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
               const SizedBox(height: 14),
               const Text(
-                'RIZAL EVENTS HUB',
+                'TUKLASRIZAL',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -147,7 +147,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
         const SizedBox(height: 14),
         const Text(
-          'Sign in to Rizal Events Hub',
+          'Sign in to TuklasRizal',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 20,

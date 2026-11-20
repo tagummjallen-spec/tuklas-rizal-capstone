@@ -11,29 +11,38 @@ class PromotionReasonPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = isDark
+        ? const Color(0xFF9FE7B5)
+        : const Color(0xFF033300);
+    final background = isDark
+        ? const Color(0xFF24352C)
+        : const Color(0xFFE8F0E5);
+    final border = isDark
+        ? const Color(0xFF5FD08A).withValues(alpha: 0.35)
+        : const Color(0xFF033300).withValues(alpha: 0.18);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F0E5),
+        color: background,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: const Color(0xFF033300).withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.info_outline, size: 11, color: Color(0xFF033300)),
+          Icon(Icons.info_outline, size: 11, color: foreground),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
               text,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 9.5,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF033300),
+                color: foreground,
               ),
             ),
           ),

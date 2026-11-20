@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// About Rizal Events Hub.
+/// About TuklasRizal.
 ///
 /// A root-level page opened from Settings so no shell tab is pushed twice.
 /// Colours follow the TuklasRizal identity: forest green `#033300` and gold
@@ -11,7 +11,6 @@ class AboutPage extends StatelessWidget {
   static const Color forest = Color(0xFF033300);
   static const Color forestDeep = Color(0xFF022400);
   static const Color gold = Color(0xFFFFC800);
-  static const Color cream = Color(0xFFF7F6F2);
 
   static const List<({IconData icon, String title, String body})> _features = [
     (
@@ -56,14 +55,14 @@ class AboutPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: forest,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          'About Rizal Events Hub',
+          'About TuklasRizal',
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
       ),
@@ -99,7 +98,7 @@ class AboutPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 const Text(
-                  'Rizal Events Hub',
+                  'TuklasRizal',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -162,10 +161,16 @@ class AboutPage extends StatelessWidget {
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8F0E5),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF24352C)
+                              : const Color(0xFFE8F0E5),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(feature.icon, size: 18, color: forest),
+                        child: Icon(
+                          feature.icon,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -174,19 +179,23 @@ class AboutPage extends StatelessWidget {
                           children: [
                             Text(
                               feature.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1B1B1B),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               feature.body,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12.5,
                                 height: 1.42,
-                                color: Color(0xFF5F5F5F),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -229,7 +238,7 @@ class AboutPage extends StatelessWidget {
                 'official IDs and endorsements before they can publish.',
           ),
           const SizedBox(height: 20),
-          const Center(
+          Center(
             child: Text(
               'TuklasRizal · Rizal Provincial Tourism Office\n'
               'Prototype v1.0 Capstone Project',
@@ -237,7 +246,7 @@ class AboutPage extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 height: 1.5,
-                color: Color(0xFF8A8A8A),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -262,15 +271,20 @@ class _AboutCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: scheme.outline.withValues(alpha: 0.45))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -281,15 +295,15 @@ class _AboutCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 19, color: AboutPage.forest),
+              Icon(icon, size: 19, color: scheme.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w800,
-                    color: AboutPage.forest,
+                    color: scheme.primary,
                   ),
                 ),
               ),
@@ -299,10 +313,10 @@ class _AboutCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               body,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.5,
-                color: Color(0xFF4A4A4A),
+                color: scheme.onSurface,
               ),
             ),
           ],

@@ -372,6 +372,10 @@ class _BottomNavShellState extends State<_BottomNavShell> {
     );
     if (_selectedIndex == -1) _selectedIndex = 0;
 
+    final navTheme = Theme.of(context).bottomNavigationBarTheme;
+    final activeColor =
+        navTheme.selectedItemColor ?? Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: BottomNavigationBar(
@@ -381,7 +385,9 @@ class _BottomNavShellState extends State<_BottomNavShell> {
           _routes.length,
           (i) => BottomNavigationBarItem(
             icon: Icon(_icons[i]),
-            activeIcon: Icon(_activeIcons[i], color: const Color(0xFF033300)),
+            // Let the active icon follow the theme so it stays readable on the
+            // dark navigation bar (gold on dark, forest on light).
+            activeIcon: Icon(_activeIcons[i], color: activeColor),
             label: _labels[i],
           ),
         ),

@@ -17,6 +17,10 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final accent = scheme.primary;
+    final muted = scheme.onSurfaceVariant;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -27,20 +31,17 @@ class SectionHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF033300),
+                    color: accent,
                   ),
                 ),
                 if (subtitle != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     subtitle!,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF6B6B6B),
-                    ),
+                    style: TextStyle(fontSize: 13, color: muted),
                   ),
                 ],
               ],
@@ -51,8 +52,8 @@ class SectionHeader extends StatelessWidget {
               onPressed: onSeeAll,
               child: Text(
                 seeAllLabel,
-                style: const TextStyle(
-                  color: Color(0xFF033300),
+                style: TextStyle(
+                  color: accent,
                   fontWeight: FontWeight.w600,
                 ),
               ),

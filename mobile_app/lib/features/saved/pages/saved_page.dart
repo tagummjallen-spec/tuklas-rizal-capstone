@@ -25,7 +25,6 @@ class SavedPage extends ConsumerStatefulWidget {
 class _SavedPageState extends ConsumerState<SavedPage> {
   static const Color forest = Color(0xFF033300);
   static const Color gold = Color(0xFFFFC800);
-  static const Color cream = Color(0xFFF7F6F2);
 
   int _tab = 0;
   final _dateFormat = DateFormat('MMM d, yyyy');
@@ -41,7 +40,7 @@ class _SavedPageState extends ConsumerState<SavedPage> {
     final isEmpty = list.isEmpty;
 
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // ---- Green header -------------------------------------------------
@@ -104,7 +103,7 @@ class _SavedPageState extends ConsumerState<SavedPage> {
 
           // ---- Events / Places switch --------------------------------------
           Container(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Row(
               children: [
@@ -233,6 +232,10 @@ class _SavedTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final selectedBg = isDark ? scheme.primary : _SavedPageState.forest;
+    final selectedFg = isDark ? const Color(0xFF06210F) : Colors.white;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -241,7 +244,9 @@ class _SavedTab extends StatelessWidget {
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? _SavedPageState.forest : const Color(0xFFF3F3EF),
+          color: selected
+              ? selectedBg
+              : (isDark ? const Color(0xFF24352C) : const Color(0xFFF3F3EF)),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -255,7 +260,7 @@ class _SavedTab extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : const Color(0xFF5A5A5A),
+                  color: selected ? selectedFg : scheme.onSurface,
                 ),
               ),
             ),
@@ -267,7 +272,7 @@ class _SavedTab extends StatelessWidget {
                 fontWeight: FontWeight.w800,
                 color: selected
                     ? _SavedPageState.gold
-                    : const Color(0xFF8A8A8A),
+                    : scheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -296,14 +301,19 @@ class _SavedEventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: scheme.outline.withValues(alpha: 0.45))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -335,11 +345,11 @@ class _SavedEventCard extends StatelessWidget {
                       event.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         height: 1.25,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1B1B1B),
+                        color: scheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -355,7 +365,7 @@ class _SavedEventCard extends StatelessWidget {
               IconButton(
                 tooltip: 'Remove bookmark',
                 onPressed: onRemove,
-                icon: const Icon(Icons.bookmark_remove, color: forest),
+                icon: Icon(Icons.bookmark_remove, color: scheme.primary),
               ),
             ],
           ),
@@ -363,8 +373,6 @@ class _SavedEventCard extends StatelessWidget {
       ),
     );
   }
-
-  static const Color forest = Color(0xFF033300);
 }
 
 class _SavedPoiCard extends StatelessWidget {
@@ -382,18 +390,21 @@ class _SavedPoiCard extends StatelessWidget {
     required this.onRemove,
   });
 
-  static const Color forest = Color(0xFF033300);
-
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: scheme.outline.withValues(alpha: 0.45))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -425,11 +436,11 @@ class _SavedPoiCard extends StatelessWidget {
                       poi.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         height: 1.25,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1B1B1B),
+                        color: scheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -448,7 +459,7 @@ class _SavedPoiCard extends StatelessWidget {
               IconButton(
                 tooltip: 'Remove bookmark',
                 onPressed: onRemove,
-                icon: const Icon(Icons.bookmark_remove, color: forest),
+                icon: Icon(Icons.bookmark_remove, color: scheme.primary),
               ),
             ],
           ),
@@ -466,16 +477,17 @@ class _SavedMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Row(
       children: [
-        Icon(icon, size: 12, color: const Color(0xFF7A7A7A)),
+        Icon(icon, size: 12, color: muted),
         const SizedBox(width: 4),
         Expanded(
           child: Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11.5, color: Color(0xFF7A7A7A)),
+            style: TextStyle(fontSize: 11.5, color: muted),
           ),
         ),
       ],
@@ -495,6 +507,8 @@ class _EmptySaved extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -504,23 +518,25 @@ class _EmptySaved extends StatelessWidget {
             Container(
               width: 84,
               height: 84,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE7F0E4),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF24352C)
+                    : const Color(0xFFE7F0E4),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 isPlaces ? Icons.bookmark_border : Icons.event_note_outlined,
                 size: 38,
-                color: _SavedPageState.forest,
+                color: scheme.primary,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               isPlaces ? 'No saved places yet' : 'No saved events yet',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
-                color: _SavedPageState.forest,
+                color: scheme.onSurface,
               ),
             ),
             const SizedBox(height: 6),
@@ -531,10 +547,10 @@ class _EmptySaved extends StatelessWidget {
                   : 'Tap the bookmark on any event to build your Rizal '
                         'itinerary. Saved events stay on this device.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 height: 1.45,
-                color: Color(0xFF6B6B6B),
+                color: scheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 18),
@@ -546,8 +562,10 @@ class _EmptySaved extends StatelessWidget {
               ),
               label: Text(isPlaces ? 'Explore places' : 'Browse events'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _SavedPageState.forest,
-                foregroundColor: Colors.white,
+                backgroundColor: isDark ? scheme.primary : _SavedPageState.forest,
+                foregroundColor: isDark
+                    ? const Color(0xFF06210F)
+                    : Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 22,

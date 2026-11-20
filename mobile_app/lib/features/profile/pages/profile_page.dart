@@ -28,7 +28,6 @@ class ProfilePage extends ConsumerStatefulWidget {
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   static const Color _forest = Color(0xFF033300);
   static const Color _gold = Color(0xFFFFC800);
-  static const Color _cream = Color(0xFFF7F6F2);
   static const List<String> _travelStyles = [
     'Day Tripper',
     'Weekend Explorer',
@@ -128,7 +127,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         liveHome?.name ?? staticHome?.name; // null when unset/unresolved
 
     return Scaffold(
-      backgroundColor: _cream,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
@@ -169,10 +168,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               ? 'Sign in and share a short introduction about yourself.'
                               : 'No bio yet. Tap Edit to add one.')
                         : _bio!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
                       height: 1.45,
-                      color: Color(0xFF3A3A3A),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -189,10 +188,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.location_city,
                             size: 18,
-                            color: _forest,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -200,10 +199,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               homeMunicipalityName == null
                                   ? 'Home municipality not set'
                                   : '$homeMunicipalityName, Rizal',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w700,
-                                color: _forest,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -212,10 +211,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.hiking_outlined,
                             size: 18,
-                            color: _forest,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -223,9 +222,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               _travelStyle == null || _travelStyle!.isEmpty
                                   ? 'Choose your travel style'
                                   : _travelStyle!,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
-                                color: Color(0xFF4A4A4A),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -266,9 +267,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           user == null
                               ? 'Sign in or finish onboarding to pick your interests.'
                               : 'No interests selected yet. Tap + Edit Interests.',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF6B6B6B),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         )
                       : Wrap(
@@ -444,30 +447,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                ElevatedButton.icon(
-                  onPressed: () => user == null
-                      ? context.push('/login')
-                      : _openEditSheet(user),
-                  icon: Icon(user == null ? Icons.login : Icons.edit, size: 17),
-                  label: Text(
-                    user == null ? 'Sign In to Edit' : 'Edit Profile',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _gold,
-                    foregroundColor: _forest,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 11,
-                    ),
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
+                if (user != null) ...[
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: () => _openEditSheet(user),
+                    icon: const Icon(Icons.edit, size: 17),
+                    label: const Text('Edit Profile'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _gold,
+                      foregroundColor: _forest,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 11,
+                      ),
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -628,7 +629,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -658,12 +659,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Edit Profile',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: _forest,
+                        color: Theme.of(sheetContext).colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -704,12 +705,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               fontSize: 12,
                               color: selectedMunicipality == m.id
                                   ? Colors.white
-                                  : const Color(0xFF4A4A4A),
+                                  : Theme.of(
+                                      sheetContext,
+                                    ).colorScheme.onSurface,
                             ),
                             side: BorderSide(
                               color: selectedMunicipality == m.id
                                   ? _forest
-                                  : const Color(0xFFE0E0E0),
+                                  : Theme.of(
+                                      sheetContext,
+                                    ).colorScheme.outline.withValues(
+                                      alpha: 0.5,
+                                    ),
                             ),
                             onSelected: (_) => setSheetState(() {
                               selectedMunicipality =
@@ -734,7 +741,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               fontSize: 12,
                               color: selectedStyle == style
                                   ? _forest
-                                  : const Color(0xFF4A4A4A),
+                                  : Theme.of(
+                                      sheetContext,
+                                    ).colorScheme.onSurface,
                               fontWeight: selectedStyle == style
                                   ? FontWeight.w700
                                   : FontWeight.w400,
@@ -742,7 +751,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             side: BorderSide(
                               color: selectedStyle == style
                                   ? _forest
-                                  : const Color(0xFFE0E0E0),
+                                  : Theme.of(
+                                      sheetContext,
+                                    ).colorScheme.outline.withValues(
+                                      alpha: 0.5,
+                                    ),
                             ),
                             onSelected: (_) => setSheetState(() {
                               selectedStyle = selectedStyle == style
@@ -771,10 +784,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             fontSize: 12,
                             color: isOn
                                 ? Colors.white
-                                : const Color(0xFF4A4A4A),
+                                : Theme.of(
+                                    sheetContext,
+                                  ).colorScheme.onSurface,
                           ),
                           side: BorderSide(
-                            color: isOn ? _forest : const Color(0xFFE0E0E0),
+                            color: isOn
+                                ? _forest
+                                : Theme.of(
+                                    sheetContext,
+                                  ).colorScheme.outline.withValues(alpha: 0.5),
                           ),
                           onSelected: (_) => setSheetState(() {
                             if (isOn) {
@@ -954,14 +973,15 @@ class _ActivityStatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.08),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -1006,7 +1026,11 @@ class _StatDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 38, color: const Color(0xFFEDEDE6));
+    return Container(
+      width: 1,
+      height: 38,
+      color: Theme.of(context).dividerColor,
+    );
   }
 }
 
@@ -1025,6 +1049,7 @@ class _StatButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
@@ -1035,14 +1060,14 @@ class _StatButton extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 15, color: const Color(0xFF033300)),
+                Icon(icon, size: 15, color: scheme.primary),
                 const SizedBox(width: 5),
                 Text(
                   '$value',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF033300),
+                    color: scheme.primary,
                   ),
                 ),
               ],
@@ -1053,10 +1078,10 @@ class _StatButton extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF6B6B6B),
+                color: scheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1088,16 +1113,21 @@ class _ProfileSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: scheme.outline.withValues(alpha: 0.45))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1111,11 +1141,11 @@ class _ProfileSectionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
-                    color: Color(0xFF033300),
+                    color: scheme.primary,
                   ),
                 ),
               ),
@@ -1123,7 +1153,7 @@ class _ProfileSectionCard extends StatelessWidget {
                 TextButton(
                   onPressed: action!.onTap,
                   style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF033300),
+                    foregroundColor: scheme.primary,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     minimumSize: const Size(0, 30),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1163,7 +1193,12 @@ class _QuickLinkTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? const Color(0xFFB3261E) : const Color(0xFF033300);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final errorColor = isDark
+        ? const Color(0xFFFFB4AB)
+        : const Color(0xFFB3261E);
+    final color = danger ? errorColor : scheme.primary;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
@@ -1176,8 +1211,12 @@ class _QuickLinkTile extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: danger
-                    ? const Color(0xFFFBEAE8)
-                    : const Color(0xFFE8F0E5),
+                    ? (isDark
+                          ? const Color(0xFF3A2320)
+                          : const Color(0xFFFBEAE8))
+                    : (isDark
+                          ? const Color(0xFF24352C)
+                          : const Color(0xFFE8F0E5)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, size: 18, color: color),
@@ -1192,7 +1231,7 @@ class _QuickLinkTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
-                      color: danger ? color : const Color(0xFF1B1B1B),
+                      color: danger ? color : scheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 1),
@@ -1200,9 +1239,9 @@ class _QuickLinkTile extends StatelessWidget {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11.5,
-                      color: Color(0xFF6B6B6B),
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -1211,7 +1250,7 @@ class _QuickLinkTile extends StatelessWidget {
             Icon(
               Icons.chevron_right,
               size: 20,
-              color: danger ? color : const Color(0xFF9A9A9A),
+              color: danger ? color : scheme.onSurfaceVariant,
             ),
           ],
         ),
@@ -1228,11 +1267,11 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 10.5,
         letterSpacing: 0.8,
         fontWeight: FontWeight.w700,
-        color: Color(0xFF6B6B6B),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }
@@ -1246,8 +1285,9 @@ class _InterestPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: const Color(0xFF033300),
+      color: isDark ? const Color(0xFF24352C) : const Color(0xFF033300),
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -1256,10 +1296,10 @@ class _InterestPill extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: isDark ? const Color(0xFF9FE7B5) : Colors.white,
             ),
           ),
         ),
