@@ -81,8 +81,7 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="geo"/>
         </intent>
-        <intent>
-            <package android:name="com.google.android.apps.maps"/>
-        </intent>
+        <!-- <package> is a direct child of <queries>, not of <intent>. -->
+        <package android:name="com.google.android.apps.maps"/>
     </queries>
 </manifest>

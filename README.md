@@ -3,15 +3,19 @@
 An LLM-based application for culture, arts and tourism in the **Province of Rizal**.
 TuklasRizal pairs a Flutter mobile app for visitors with a React web admin portal for
 municipal **Tourism Coordinators**, both backed by a single Supabase (PostgreSQL +
-pgvector) project.
+pgvector) project and a RAG Edge Function for the AI tour guide.
 
 - **Mobile app** (`mobile_app/`) — Flutter: discover municipalities, approved events,
-  heritage sites, unique Rizal foods, geofence welcome alerts and a conversational
-  AI assistant backed by RAG over event embeddings.
+  heritage sites, unique Rizal foods, RA 10173-compliant geofence welcome alerts and a
+  conversational AI tour guide served by the `rizal-ai-chat` Edge Function (live
+  Supabase records + a verified reference guide, Groq with a Gemini fallback).
 - **Web admin** (`web_admin/`) — React + Vite: Tourism Coordinators review event
   submissions, manage points of interest and answer visitor inquiries.
-- **Database** (`supabase/`) — migrations, the initial demo seed and the full
-  14-municipality tourism seed, plus a JSON copy of that dataset in `dataset/`.
+- **Backend** (`supabase/`) — migrations, seeds, storage policies, approval and review
+  guardrails, plus the `rizal-ai-chat` Edge Function.
+
+📘 **Full technical documentation:** [SYSTEM_DOCUMENTATION.md](SYSTEM_DOCUMENTATION.md)
+(architecture, schema & RLS, auth/RBAC, the AI guide, feature flows, deployment).
 
 ## Repository layout
 
@@ -19,11 +23,16 @@ pgvector) project.
 mobile_app/                     Flutter app (Android, iOS, web)
 web_admin/                      React + Vite + TypeScript admin portal
 supabase/migrations/            SQL schema (001_initial_schema.sql)
+supabase/functions/rizal-ai-chat/  RAG Edge Function (index.ts, rizal_knowledge.ts)
 supabase/seed.sql               Small demo seed
 supabase/seed_full_rizal.sql    Full idempotent seed: 14 municipalities,
                                 6 categories, 28 approved events, 36 POIs
+supabase/storage_policies.sql   Public tourism-media bucket + policies
+supabase/admin_user_approvals.sql  LGU approval columns, triggers, private docs
+supabase/review_guardrails.sql  event_reviews table + eligibility policies
 dataset/rizal_tourism_dataset.json   JSON mirror of the full seed
 docs/                           Capstone documentation
+SYSTEM_DOCUMENTATION.md         Complete system documentation
 ```
 
 ## Prerequisites
